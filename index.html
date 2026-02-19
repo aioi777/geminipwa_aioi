@@ -2012,7 +2012,7 @@
     <dialog id="fileUploadDialog" class="custom-dialog">
         <div class="dialog-content">
             <div class="file-upload-area">
-                <input type="file" id="file-input" multiple accept="image/*,text/*,application/pdf,video/*,audio/*" class="hidden">
+                <input type="file" id="file-input" multiple webkitdirectory class="hidden">
                 <button id="select-files-btn" class="dialog-button">ファイルを選択</button>
             </div>
             <ul id="selected-files-list">
@@ -3871,8 +3871,9 @@
 
                     const nameSpan = document.createElement('span');
                     nameSpan.classList.add('selected-file-name');
-                    nameSpan.textContent = item.file.name;
-                    nameSpan.title = item.file.name;
+                    const displayName = item.file.webkitRelativePath || item.file.name;
+                    nameSpan.textContent = displayName;
+                    nameSpan.title = displayName;
 
                     const sizeSpan = document.createElement('span');
                     sizeSpan.classList.add('selected-file-size');
