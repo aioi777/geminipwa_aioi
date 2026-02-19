@@ -2029,11 +2029,26 @@
     <!-- コンテキストキャッシュ作成ダイアログ -->
     <dialog id="createCacheDialog" class="custom-dialog">
         <h3 style="margin-top:0; margin-bottom:15px;">コンテキストキャッシュ新規作成</h3>
+        
+        <div class="file-upload-area" style="text-align: left; margin-bottom: 5px;">
+            <input type="file" id="cache-file-input" multiple accept=".txt,text/plain" class="hidden">
+            <button id="select-cache-files-btn" class="settings-action-button" type="button" style="padding: 8px 12px; font-size: 13px;">ファイルから読込</button>
+        </div>
+        <ul id="cache-selected-files-list" style="list-style: none; padding: 0; margin: 0 0 10px 0; max-height: 80px; overflow-y: auto; font-size: 12px;">
+            <!-- Selected files will be listed here -->
+        </ul>
+
         <label class="dialog-message" for="cache-content-input" style="margin-bottom:5px;">キャッシュするコンテンツ:</label>
         <textarea id="cache-content-input" class="dialog-input" style="min-height: 150px; max-height: 300px; resize: vertical;" placeholder="ここに大量のコードなどを貼り付けます..."></textarea>
         
         <label class="dialog-message" for="cache-name-input" style="margin-bottom:5px;">キャッシュ名:</label>
         <input type="text" id="cache-name-input" class="dialog-input" placeholder="例: my-react-codebase">
+
+        <label class="dialog-message" for="cache-ttl-input" style="margin-bottom:5px;">有効期間（分）:</label>
+        <input type="number" id="cache-ttl-input" class="dialog-input" placeholder="デフォルト: 60 (1時間), 0で最大値 (6日間)">
+        <p style="font-size: 11px; color: var(--text-secondary); margin-top: -5px; margin-bottom: 10px;">
+            ※ キャッシュが自動的に削除されるまでの時間を分単位で指定します。
+        </p>
 
         <div class="dialog-actions">
             <button value="cancel" class="dialog-cancel-btn">キャンセル</button>
@@ -2207,6 +2222,10 @@
             createCacheDialog: document.getElementById('createCacheDialog'),
             cacheContentInput: document.getElementById('cache-content-input'),
             cacheNameInput: document.getElementById('cache-name-input'),
+            cacheTtlInput: document.getElementById('cache-ttl-input'),
+            cacheFileInput: document.getElementById('cache-file-input'),
+            selectCacheFilesBtn: document.getElementById('select-cache-files-btn'),
+            cacheSelectedFilesList: document.getElementById('cache-selected-files-list'),
         };
 
         // --- アプリ状態 ---
@@ -4116,7 +4135,7 @@
             },
 
             // --- Context Cache API ---
-            async createCache(displayName, content, model) {
+            async createCache(displayName, content, model, ttlMinutes) {
                 if (!state.settings.apiKey) throw new Error("APIキーが設定されていません。");
                 const endpoint = `${GEMINI_API_BASE_URL}cachedContents?key=${state.settings.apiKey}`;
                 const requestBody = {
@@ -4127,8 +4146,18 @@
                             { text: content }
                         ]
                     },
-                    // TTL (Time to Live) はAPIのデフォルト（1時間）を使用
                 };
+
+                // TTL（Time to Live）をリクエストに追加
+                if (ttlMinutes !== null && ttlMinutes >= 0) {
+                    if (ttlMinutes === 0) {
+                        // 0の場合は最大TTL（6日）を設定
+                        requestBody.ttl = { seconds: 6 * 24 * 60 * 60 };
+                    } else {
+                        requestBody.ttl = { seconds: ttlMinutes * 60 };
+                    }
+                }
+                // ttlMinutesがnullの場合は、APIのデフォルト（1時間）が使用される
 
                 console.log("Creating cache with body:", JSON.stringify(requestBody, null, 2));
                 uiUtils.setSendingState(true); // ローディング表示
@@ -4438,6 +4467,11 @@
                 elements.createCacheDialog.querySelector('.dialog-ok-btn').addEventListener('click', () => this.handleCreateCache());
                 elements.createCacheDialog.querySelector('.dialog-cancel-btn').addEventListener('click', () => {
                     elements.createCacheDialog.close();
+                });
+                elements.selectCacheFilesBtn.addEventListener('click', () => elements.cacheFileInput.click());
+                elements.cacheFileInput.addEventListener('change', (event) => {
+                    appLogic.handleCacheFileSelection(event.target.files);
+                    event.target.value = null; // 同じファイルを選択できるようにリセット
                 });
                 // モデルを変更したら、互換性のあるキャッシュリストを更新する
                 elements.modelNameSelect.addEventListener('change', () => uiUtils.updateCacheUI());
@@ -6503,6 +6537,16 @@
                 const displayName = elements.cacheNameInput.value.trim();
                 const content = elements.cacheContentInput.value.trim();
                 const model = state.settings.modelName;
+                const ttlInput = elements.cacheTtlInput.value.trim();
+                let ttlMinutes = null;
+
+                if (ttlInput !== '') {
+                    ttlMinutes = parseInt(ttlInput, 10);
+                    if (isNaN(ttlMinutes) || ttlMinutes < 0) {
+                        await uiUtils.showCustomAlert("有効期間は0以上の数値を入力してください。");
+                        return;
+                    }
+                }
 
                 if (!displayName || !content) {
                     await uiUtils.showCustomAlert("キャッシュ名とコンテンツの両方を入力してください。");
@@ -6516,7 +6560,7 @@
                 elements.createCacheDialog.close();
 
                 try {
-                    const newCache = await apiUtils.createCache(displayName, content, model);
+                    const newCache = await apiUtils.createCache(displayName, content, model, ttlMinutes);
                     console.log("Cache created successfully:", newCache);
 
                     // stateを更新
@@ -6538,6 +6582,45 @@
 
                 } catch (error) {
                     await uiUtils.showCustomAlert(error.message);
+                }
+            },
+
+            async handleCacheFileSelection(fileList) {
+                if (!fileList || fileList.length === 0) return;
+
+                elements.selectCacheFilesBtn.disabled = true;
+                elements.selectCacheFilesBtn.textContent = '読込中...';
+                elements.cacheSelectedFilesList.innerHTML = '<li>読込中...</li>';
+
+                let combinedContent = '';
+                const fileNames = [];
+
+                const readPromises = Array.from(fileList).map(file => {
+                    return new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                            fileNames.push(file.name);
+                            resolve(reader.result);
+                        };
+                        reader.onerror = reject;
+                        reader.readAsText(file, 'UTF-8');
+                    });
+                });
+
+                try {
+                    const contents = await Promise.all(readPromises);
+                    combinedContent = contents.join('\n\n/* --- ' + fileNames.join(', ') + ' --- */\n\n');
+
+                    elements.cacheContentInput.value = combinedContent;
+                    elements.cacheSelectedFilesList.innerHTML = fileNames.map(name => `<li title="${name}" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${name}</li>`).join('');
+
+                } catch (error) {
+                    console.error("Error reading files for cache:", error);
+                    await uiUtils.showCustomAlert("ファイルの読み込み中にエラーが発生しました。");
+                    elements.cacheSelectedFilesList.innerHTML = '<li>エラーが発生しました</li>';
+                } finally {
+                    elements.selectCacheFilesBtn.disabled = false;
+                    elements.selectCacheFilesBtn.textContent = 'ファイルから読込';
                 }
             },
 
