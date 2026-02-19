@@ -1871,6 +1871,22 @@
                     </p>
                 </div>
                 <div class="settings-group">
+                    <h3>コンテキストキャッシュ</h3>
+                    <label for="context-cache-select">使用するキャッシュ:</label>
+                    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                        <select id="context-cache-select" style="flex-grow: 1; margin-bottom: 0;" aria-label="使用するキャッシュ">
+                            <option value="">なし</option>
+                            <!-- キャッシュはJSで動的に追加 -->
+                        </select>
+                        <button id="new-cache-btn" class="settings-action-button" style="padding: 8px 12px; font-size: 13px;">新規</button>
+                        <button id="delete-cache-btn" class="settings-delete-button" style="padding: 8px; font-size: 13px; margin-left: 0;">削除</button>
+                    </div>
+                    <p style="font-size: 11px; color: var(--text-secondary); margin-top: -5px; margin-bottom: 10px;">
+                        ※ 巨大なコードなどを事前に読み込ませることで、APIコール時のトークン消費を節約します。<br>
+                        ※ キャッシュはモデルと紐づきます。モデルを切り替えるとキャッシュも再選択してください。
+                    </p>
+                </div>
+                <div class="settings-group">
                     <h3>イメージ画像</h3>
                     <label>チャット画面の背景画像:</label>
                     <div class="image-upload-controls">
@@ -2007,6 +2023,21 @@
         <div class="dialog-actions">
             <button id="cancel-attach-btn" value="cancel" class="dialog-cancel-btn">キャンセル</button>
             <button id="confirm-attach-btn" value="ok" class="dialog-ok-btn" disabled>添付して閉じる</button>
+        </div>
+    </dialog>
+
+    <!-- コンテキストキャッシュ作成ダイアログ -->
+    <dialog id="createCacheDialog" class="custom-dialog">
+        <h3 style="margin-top:0; margin-bottom:15px;">コンテキストキャッシュ新規作成</h3>
+        <label class="dialog-message" for="cache-content-input" style="margin-bottom:5px;">キャッシュするコンテンツ:</label>
+        <textarea id="cache-content-input" class="dialog-input" style="min-height: 150px; max-height: 300px; resize: vertical;" placeholder="ここに大量のコードなどを貼り付けます..."></textarea>
+        
+        <label class="dialog-message" for="cache-name-input" style="margin-bottom:5px;">キャッシュ名:</label>
+        <input type="text" id="cache-name-input" class="dialog-input" placeholder="例: my-react-codebase">
+
+        <div class="dialog-actions">
+            <button value="cancel" class="dialog-cancel-btn">キャンセル</button>
+            <button value="ok" class="dialog-ok-btn">作成</button>
         </div>
     </dialog>
 
@@ -2168,6 +2199,14 @@
             selectedFilesList: document.getElementById('selected-files-list'),
             confirmAttachBtn: document.getElementById('confirm-attach-btn'),
             cancelAttachBtn: document.getElementById('cancel-attach-btn'),
+
+            // コンテキストキャッシュUI
+            contextCacheSelect: document.getElementById('context-cache-select'),
+            newCacheBtn: document.getElementById('new-cache-btn'),
+            deleteCacheBtn: document.getElementById('delete-cache-btn'),
+            createCacheDialog: document.getElementById('createCacheDialog'),
+            cacheContentInput: document.getElementById('cache-content-input'),
+            cacheNameInput: document.getElementById('cache-name-input'),
         };
 
         // --- アプリ状態 ---
@@ -2203,6 +2242,8 @@
                 hideSystemPromptInChat: false, // SP非表示設定 (デフォルトfalse)
                 enableGrounding: false, //ネット検索設定 (デフォルトfalse)
                 enableSwipeNavigation: true,
+                contextCaches: [], // { name: string, displayName: string, model: string }
+                activeCacheName: '', // 現在選択中のキャッシュのname (e.g., "cachedContents/...")
             },
             backgroundImageUrl: null, // 生成されたオブジェクトURL (DBには保存しない)
             isSending: false,
@@ -2422,12 +2463,14 @@
                                          state.settings[key] = loadedValue;
                                     } else {
                                          if (loadedValue !== null) console.warn(`読み込んだ 'backgroundImageBlob' がBlobではありません。nullに設定します。型: ${typeof loadedValue}`);
-                                         state.settings[key] = null; // Blobでないか明示的にnullならnullを使用
-                                    }
-                                } else if (key === 'hideSystemPromptInChat') { // SP非表示設定
-                                    state.settings[key] = loadedValue === true;
-                                } else if (key === 'enableGrounding') { // ネット検索設定
-                                    state.settings[key] = loadedValue === true;
+                                                                                  state.settings[key] = null; // Blobでないか明示的にnullならnullを使用
+                                                                              }
+                                                                         } else if (key === 'contextCaches') {
+                                                                             // contextCachesは配列であることを保証
+                                                                             state.settings[key] = Array.isArray(loadedValue) ? loadedValue : [];
+                                                                         } else if (key === 'hideSystemPromptInChat') { // SP非表示設定
+                                                                             state.settings[key] = loadedValue === true;
+                                                                         } else if (key === 'enableGrounding') { // ネット検索設定                                    state.settings[key] = loadedValue === true;
                                 } else if (key === 'enableSwipeNavigation') { // スワイプナビゲーション設定
                                     state.settings[key] = loadedValue === true;
                                 } else if (key === 'darkMode' || key === 'streamingOutput' || key === 'pseudoStreaming' || key === 'enterToSend' || key === 'concatDummyModel') {
@@ -3332,6 +3375,47 @@
                     elements.deleteBackgroundBtn.classList.add('hidden');
                 }
             },
+
+            // コンテキストキャッシュUIを更新
+            updateCacheUI() {
+                const select = elements.contextCacheSelect;
+                if (!select) return;
+                const currentModel = state.settings.modelName;
+                const activeCacheName = state.settings.activeCacheName;
+
+                const currentValue = select.value;
+                select.innerHTML = ''; // Clear existing options
+
+                // Add default "None" option
+                const defaultOption = document.createElement('option');
+                defaultOption.value = '';
+                defaultOption.textContent = 'なし';
+                select.appendChild(defaultOption);
+
+                // Filter caches for the current model
+                const compatibleCaches = state.settings.contextCaches.filter(cache => cache.model === currentModel);
+
+                if (compatibleCaches.length > 0) {
+                    compatibleCaches.forEach(cache => {
+                        const option = document.createElement('option');
+                        option.value = cache.name;
+                        option.textContent = cache.displayName;
+                        option.title = `${cache.displayName} (${cache.name})`;
+                        select.appendChild(option);
+                    });
+                }
+                
+                // Set the selected value
+                select.value = activeCacheName;
+
+                // If the active cache is not in the new list of compatible caches, reset it.
+                if (select.value !== activeCacheName && activeCacheName) {
+                    console.warn(`Active cache "${activeCacheName}" is not compatible with model "${currentModel}". Resetting.`);
+                    state.settings.activeCacheName = '';
+                    select.value = '';
+                    // This change will be saved when the user clicks "Save Settings"
+                }
+            },
             // ------------------------------------
 
             // 設定をUIに適用
@@ -3364,6 +3448,9 @@
 
                 // ユーザー指定モデルをコンボボックスに追加
                 this.updateUserModelOptions();
+                
+                // コンテキストキャッシュUIを更新
+                this.updateCacheUI();
 
                 this.updateBackgroundSettingsUI(); // 背景画像UI要素を更新
                 this.applyDarkMode(); // 読み込み/更新された設定を反映してテーマを適用 (チェックボックス設定後)
@@ -3798,6 +3885,22 @@
                     requestBody.tools = tools;
                 }
 
+                // --- コンテキストキャッシュを追加 ---
+                const activeCacheName = state.settings.activeCacheName;
+                if (activeCacheName) {
+                    const cache = state.settings.contextCaches.find(c => c.name === activeCacheName);
+                    const currentModel = state.settings.modelName;
+                    if (cache && cache.model === currentModel) {
+                        requestBody.cachedContent = cache.name;
+                        console.log(`コンテキストキャッシュ「${cache.displayName}」(${cache.name}) を使用します。`);
+                    } else if (cache) {
+                        console.warn(`アクティブなキャッシュ「${cache.displayName}」は現在のモデル「${currentModel}」と互換性がありません。キャッシュは使用されません。`);
+                    } else {
+                        console.warn(`アクティブなキャッシュ名「${activeCacheName}」が見つかりません。キャッシュは使用されません。`);
+                    }
+                }
+                // ---------------------------------
+
                 console.log("Geminiへの送信データ:", JSON.stringify(requestBody, (key, value) => {
                     // Base64データはログで見やすく省略
                     if (key === 'data' && typeof value === 'string' && value.length > 100) {
@@ -4010,6 +4113,68 @@
                          return null;
                      }
                  }
+            },
+
+            // --- Context Cache API ---
+            async createCache(displayName, content, model) {
+                if (!state.settings.apiKey) throw new Error("APIキーが設定されていません。");
+                const endpoint = `${GEMINI_API_BASE_URL}cachedContents?key=${state.settings.apiKey}`;
+                const requestBody = {
+                    displayName: displayName,
+                    model: `models/${model}`, // APIは "models/model-name" 形式を期待
+                    contents: {
+                        parts: [
+                            { text: content }
+                        ]
+                    },
+                    // TTL (Time to Live) はAPIのデフォルト（1時間）を使用
+                };
+
+                console.log("Creating cache with body:", JSON.stringify(requestBody, null, 2));
+                uiUtils.setSendingState(true); // ローディング表示
+
+                try {
+                    const response = await fetch(endpoint, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(requestBody),
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => null);
+                        console.error("Cache creation API error response:", errorData);
+                        throw new Error(`キャッシュ作成APIエラー (${response.status}): ${errorData?.error?.message || '不明なエラー'}`);
+                    }
+
+                    return await response.json(); // 作成されたキャッシュオブジェクトを返す
+                } finally {
+                    uiUtils.setSendingState(false); // ローディング非表示
+                }
+            },
+
+            async deleteCache(cacheName) {
+                if (!state.settings.apiKey) throw new Error("APIキーが設定されていません。");
+                // cacheName は "cachedContents/..." の形式
+                const endpoint = `${GEMINI_API_BASE_URL}${cacheName}?key=${state.settings.apiKey}`;
+                
+                console.log(`Deleting cache at endpoint: ${endpoint}`);
+                uiUtils.setSendingState(true); // ローディング表示
+
+                try {
+                    const response = await fetch(endpoint, {
+                        method: 'DELETE',
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => null);
+                        console.error("Cache deletion API error response:", errorData);
+                        throw new Error(`キャッシュ削除APIエラー (${response.status}): ${errorData?.error?.message || '不明なエラー'}`);
+                    }
+
+                    return await response.json(); // 成功時は空のオブジェクトが返る
+                } finally {
+                    uiUtils.setSendingState(false); // ローディング非表示
+                }
             }
         };
 
@@ -4266,6 +4431,16 @@
                         this.cancelAttachment(); // OK以外で閉じたらキャンセル
                     }
                 });
+
+                // コンテキストキャッシュ関連のイベントリスナー
+                elements.newCacheBtn.addEventListener('click', () => this.showCreateCacheDialog());
+                elements.deleteCacheBtn.addEventListener('click', () => this.confirmDeleteCache());
+                elements.createCacheDialog.querySelector('.dialog-ok-btn').addEventListener('click', () => this.handleCreateCache());
+                elements.createCacheDialog.querySelector('.dialog-cancel-btn').addEventListener('click', () => {
+                    elements.createCacheDialog.close();
+                });
+                // モデルを変更したら、互換性のあるキャッシュリストを更新する
+                elements.modelNameSelect.addEventListener('change', () => uiUtils.updateCacheUI());
             },
 
             // popstateイベントハンドラ (戻るボタン/ジェスチャー)
@@ -5394,6 +5569,7 @@
                      hideSystemPromptInChat: elements.hideSystemPromptToggle.checked, // SP非表示設定
                      enableGrounding: elements.enableGroundingToggle.checked, // ネット検索設定を取得
                      enableSwipeNavigation: elements.swipeNavigationToggle.checked,//スワイプナビゲーション設定を取得
+                     activeCacheName: elements.contextCacheSelect.value,
                  };
 
                  // --- 数値入力のバリデーション ---
@@ -5430,6 +5606,9 @@
                      const promises = Object.entries(newSettings).map(([key, value]) =>
                          dbUtils.saveSetting(key, value)
                      );
+                     // contextCaches 配列も保存
+                     promises.push(dbUtils.saveSetting('contextCaches', state.settings.contextCaches));
+
                      await Promise.all(promises);
 
                      // stateをバリデーション後の値で更新 (背景Blobは既にstateにある)
@@ -6264,6 +6443,102 @@
                 console.log("ファイル添付をキャンセルしました。");
                 elements.fileUploadDialog.close('cancel'); // ダイアログを閉じる
                 uiUtils.updateAttachmentBadgeVisibility();
+            },
+
+            // --- Context Cache Logic ---
+            showCreateCacheDialog() {
+                const currentModel = state.settings.modelName;
+                if (!currentModel) {
+                    uiUtils.showCustomAlert("先にモデルを選択してください。");
+                    return;
+                }
+                elements.cacheNameInput.value = '';
+                elements.cacheContentInput.value = '';
+                elements.createCacheDialog.querySelector('h3').textContent = `キャッシュ新規作成 (${currentModel})`;
+                elements.createCacheDialog.showModal();
+                elements.cacheNameInput.focus();
+            },
+
+            async confirmDeleteCache() {
+                const cacheName = elements.contextCacheSelect.value;
+                if (!cacheName) {
+                    await uiUtils.showCustomAlert("削除するキャッシュが選択されていません。");
+                    return;
+                }
+                const cache = state.settings.contextCaches.find(c => c.name === cacheName);
+                if (!cache) {
+                    await uiUtils.showCustomAlert("選択されたキャッシュ情報が見つかりません。");
+                    return;
+                }
+
+                const confirmed = await uiUtils.showCustomConfirm(`キャッシュ「${cache.displayName}」を削除しますか？\nこの操作は元に戻せません。`);
+                if (confirmed) {
+                    try {
+                        await apiUtils.deleteCache(cache.name);
+
+                        // stateからキャッシュを削除
+                        state.settings.contextCaches = state.settings.contextCaches.filter(c => c.name !== cache.name);
+                        
+                        // アクティブキャッシュが削除されたものならリセット
+                        if (state.settings.activeCacheName === cache.name) {
+                            state.settings.activeCacheName = '';
+                        }
+
+                        // DBに保存
+                        await dbUtils.saveSetting('contextCaches', state.settings.contextCaches);
+                        await dbUtils.saveSetting('activeCacheName', state.settings.activeCacheName);
+
+                        // UIを更新
+                        uiUtils.updateCacheUI();
+                        
+                        await uiUtils.showCustomAlert("キャッシュを削除しました。");
+
+                    } catch (error) {
+                        await uiUtils.showCustomAlert(error.message);
+                    }
+                }
+            },
+
+            async handleCreateCache() {
+                const displayName = elements.cacheNameInput.value.trim();
+                const content = elements.cacheContentInput.value.trim();
+                const model = state.settings.modelName;
+
+                if (!displayName || !content) {
+                    await uiUtils.showCustomAlert("キャッシュ名とコンテンツの両方を入力してください。");
+                    return;
+                }
+                if (!model) {
+                    await uiUtils.showCustomAlert("モデルが選択されていません。");
+                    return;
+                }
+                
+                elements.createCacheDialog.close();
+
+                try {
+                    const newCache = await apiUtils.createCache(displayName, content, model);
+                    console.log("Cache created successfully:", newCache);
+
+                    // stateを更新
+                    state.settings.contextCaches.push({
+                        name: newCache.name,
+                        displayName: newCache.displayName,
+                        model: newCache.model.replace('models/', ''), // "models/" プレフィックスを削除
+                    });
+                    state.settings.activeCacheName = newCache.name;
+
+                    // DBに保存
+                    await dbUtils.saveSetting('contextCaches', state.settings.contextCaches);
+                    await dbUtils.saveSetting('activeCacheName', state.settings.activeCacheName);
+
+                    // UIを更新
+                    uiUtils.updateCacheUI();
+
+                    await uiUtils.showCustomAlert(`キャッシュ「${newCache.displayName}」を作成し、アクティブに設定しました。`);
+
+                } catch (error) {
+                    await uiUtils.showCustomAlert(error.message);
+                }
             },
 
         }; // appLogic終了
