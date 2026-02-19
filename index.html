@@ -1886,8 +1886,10 @@
                             <!-- キャッシュはJSで動的に追加 -->
                         </select>
                         <button id="new-cache-btn" class="settings-action-button" style="padding: 8px 12px; font-size: 13px;">新規</button>
+                        <button id="update-cache-btn" class="settings-action-button" style="padding: 8px 12px; font-size: 13px; background-color: var(--bg-button-edit);">更新</button>
                         <button id="delete-cache-btn" class="settings-delete-button" style="padding: 8px; font-size: 13px; margin-left: 0;">削除</button>
                     </div>
+                    <p id="cache-expire-time-display" style="font-size: 11px; color: var(--text-secondary); margin-top: -5px; margin-bottom: 10px; height: 1.2em;">&nbsp;</p>
                     <p style="font-size: 11px; color: var(--text-secondary); margin-top: -5px; margin-bottom: 10px;">
                         ※ 巨大なコードなどを事前に読み込ませることで、APIコール時のトークン消費を節約します。<br>
                         ※ キャッシュはモデルと紐づきます。モデルを切り替えるとキャッシュも再選択してください。
@@ -2063,6 +2065,23 @@
         </div>
     </dialog>
 
+    <!-- コンテキストキャッシュ更新ダイアログ -->
+    <dialog id="updateCacheDialog" class="custom-dialog">
+        <h3 style="margin-top:0; margin-bottom:15px;">キャッシュ期間更新</h3>
+        <p class="dialog-message">キャッシュ名: <strong id="update-cache-display-name"></strong></p>
+        
+        <label class="dialog-message" for="update-cache-ttl-input" style="margin-bottom:5px;">新しい有効期間（分）:</label>
+        <input type="number" id="update-cache-ttl-input" class="dialog-input" placeholder="デフォルト: 60 (1時間), 0で最大値 (6日間)">
+        <p style="font-size: 11px; color: var(--text-secondary); margin-top: -5px; margin-bottom: 10px;">
+            ※ 現在の時刻から、指定した期間だけキャッシュが延長されます。
+        </p>
+
+        <div class="dialog-actions">
+            <button value="cancel" class="dialog-cancel-btn">キャンセル</button>
+            <button value="ok" class="dialog-ok-btn">更新</button>
+        </div>
+    </dialog>
+
     <script>
         // --- 定数 ---
         const DB_NAME = 'GeminiPWA_DB';
@@ -2233,6 +2252,12 @@
             cacheFileInput: document.getElementById('cache-file-input'),
             selectCacheFilesBtn: document.getElementById('select-cache-files-btn'),
             cacheSelectedFilesList: document.getElementById('cache-selected-files-list'),
+            // Cache Update UI
+            updateCacheBtn: document.getElementById('update-cache-btn'),
+            updateCacheDialog: document.getElementById('update-cache-dialog'),
+            updateCacheDisplayName: document.getElementById('update-cache-display-name'),
+            updateCacheTtlInput: document.getElementById('update-cache-ttl-input'),
+            cacheExpireTimeDisplay: document.getElementById('cache-expire-time-display'),
         };
 
         // --- アプリ状態 ---
@@ -3441,7 +3466,50 @@
                     select.value = '';
                     // This change will be saved when the user clicks "Save Settings"
                 }
+                // 最後に残り時間表示を更新
+                this.updateCacheExpireTimeDisplay();
             },
+
+            // キャッシュの残り時間を表示
+            updateCacheExpireTimeDisplay() {
+                const select = elements.contextCacheSelect;
+                const display = elements.cacheExpireTimeDisplay;
+                if (!select || !display) return;
+
+                const cacheName = select.value;
+                if (!cacheName) {
+                    display.innerHTML = '&nbsp;'; // Clear display
+                    return;
+                }
+
+                const cache = state.settings.contextCaches.find(c => c.name === cacheName);
+                if (!cache || !cache.expireTime) {
+                    display.textContent = '有効期限情報なし';
+                    return;
+                }
+
+                const expireDate = new Date(cache.expireTime);
+                const now = new Date();
+                const diffMillis = expireDate - now;
+
+                if (diffMillis <= 0) {
+                    display.textContent = '有効期限切れ';
+                    return;
+                }
+
+                const diffMinutes = Math.round(diffMillis / 1000 / 60);
+
+                if (diffMinutes < 1) {
+                    display.textContent = '残り1分未満';
+                } else if (diffMinutes < 60) {
+                    display.textContent = `残り約 ${diffMinutes}分`;
+                } else {
+                    const diffHours = Math.floor(diffMinutes / 60);
+                    const remainingMinutes = diffMinutes % 60;
+                    display.textContent = `残り約 ${diffHours}時間 ${remainingMinutes}分`;
+                }
+            },
+
             // ------------------------------------
 
             // 設定をUIに適用
@@ -4211,6 +4279,42 @@
                 } finally {
                     uiUtils.setSendingState(false); // ローディング非表示
                 }
+            },
+
+            async updateCache(cacheName, ttlMinutes) {
+                if (!state.settings.apiKey) throw new Error("APIキーが設定されていません。");
+                const endpoint = `${GEMINI_API_BASE_URL}${cacheName}?updateMask=ttl&key=${state.settings.apiKey}`;
+                
+                let ttlInSeconds;
+                if (ttlMinutes !== null && ttlMinutes >= 0) {
+                    ttlInSeconds = (ttlMinutes === 0) ? (6 * 24 * 60 * 60) : (ttlMinutes * 60);
+                } else {
+                    throw new Error("新しい有効期間が指定されていません。");
+                }
+
+                const requestBody = {
+                    ttl: { seconds: ttlInSeconds }
+                };
+
+                console.log(`Updating cache at endpoint: ${endpoint} with body:`, JSON.stringify(requestBody, null, 2));
+                uiUtils.setSendingState(true);
+
+                try {
+                    const response = await fetch(endpoint, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(requestBody),
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => null);
+                        console.error("Cache update API error response:", errorData);
+                        throw new Error(`キャッシュ更新APIエラー (${response.status}): ${errorData?.error?.message || '不明なエラー'}`);
+                    }
+                    return await response.json();
+                } finally {
+                    uiUtils.setSendingState(false);
+                }
             }
         };
 
@@ -4470,15 +4574,24 @@
 
                 // コンテキストキャッシュ関連のイベントリスナー
                 elements.newCacheBtn.addEventListener('click', () => this.showCreateCacheDialog());
+                elements.updateCacheBtn.addEventListener('click', () => this.showUpdateCacheDialog());
                 elements.deleteCacheBtn.addEventListener('click', () => this.confirmDeleteCache());
                 elements.createCacheDialog.querySelector('.dialog-ok-btn').addEventListener('click', () => this.handleCreateCache());
                 elements.createCacheDialog.querySelector('.dialog-cancel-btn').addEventListener('click', () => {
                     elements.createCacheDialog.close();
                 });
+                elements.updateCacheDialog.querySelector('.dialog-ok-btn').addEventListener('click', () => this.handleUpdateCache());
+                elements.updateCacheDialog.querySelector('.dialog-cancel-btn').addEventListener('click', () => {
+                    elements.updateCacheDialog.close();
+                });
                 elements.selectCacheFilesBtn.addEventListener('click', () => elements.cacheFileInput.click());
                 elements.cacheFileInput.addEventListener('change', (event) => {
                     appLogic.handleCacheFileSelection(event.target.files);
                     event.target.value = null; // 同じファイルを選択できるようにリセット
+                });
+                elements.contextCacheSelect.addEventListener('change', () => {
+                    state.settings.activeCacheName = elements.contextCacheSelect.value;
+                    uiUtils.updateCacheExpireTimeDisplay();
                 });
                 // モデルを変更したら、互換性のあるキャッシュリストを更新する
                 elements.modelNameSelect.addEventListener('change', () => uiUtils.updateCacheUI());
@@ -6495,9 +6608,72 @@
                 }
                 elements.cacheNameInput.value = '';
                 elements.cacheContentInput.value = '';
+                elements.cacheSelectedFilesList.innerHTML = '';
+                elements.cacheTtlInput.value = '';
                 elements.createCacheDialog.querySelector('h3').textContent = `キャッシュ新規作成 (${currentModel})`;
                 elements.createCacheDialog.showModal();
                 elements.cacheNameInput.focus();
+            },
+
+            showUpdateCacheDialog() {
+                const cacheName = elements.contextCacheSelect.value;
+                if (!cacheName) {
+                    uiUtils.showCustomAlert("更新するキャッシュを選択してください。");
+                    return;
+                }
+                const cache = state.settings.contextCaches.find(c => c.name === cacheName);
+                if (!cache) {
+                    uiUtils.showCustomAlert("選択されたキャッシュ情報が見つかりません。");
+                    return;
+                }
+                elements.updateCacheDisplayName.textContent = cache.displayName;
+                elements.updateCacheTtlInput.value = ''; // 毎回入力を促すためクリア
+                elements.updateCacheDialog.showModal();
+                elements.updateCacheTtlInput.focus();
+            },
+
+            async handleUpdateCache() {
+                const cacheName = elements.contextCacheSelect.value;
+                const ttlInput = elements.updateCacheTtlInput.value.trim();
+                let ttlMinutes = null;
+
+                if (ttlInput === '') {
+                    await uiUtils.showCustomAlert("新しい有効期間を入力してください。");
+                    return;
+                }
+
+                ttlMinutes = parseInt(ttlInput, 10);
+                if (isNaN(ttlMinutes) || ttlMinutes < 0) {
+                    await uiUtils.showCustomAlert("有効期間は0以上の数値を入力してください。");
+                    return;
+                }
+
+                if (!cacheName) {
+                    await uiUtils.showCustomAlert("対象のキャッシュが見つかりません。");
+                    return;
+                }
+
+                elements.updateCacheDialog.close();
+
+                try {
+                    const updatedCache = await apiUtils.updateCache(cacheName, ttlMinutes);
+                    console.log("Cache updated successfully:", updatedCache);
+
+                    // state内のキャッシュの有効期限を更新
+                    const cacheInState = state.settings.contextCaches.find(c => c.name === cacheName);
+                    if (cacheInState) {
+                        cacheInState.expireTime = updatedCache.expireTime;
+                        // contextCaches全体を保存
+                        await dbUtils.saveSetting('contextCaches', state.settings.contextCaches);
+                    }
+
+                    await uiUtils.showCustomAlert(`キャッシュの有効期間を更新しました。`);
+                    // UI表示を更新
+                    uiUtils.updateCacheExpireTimeDisplay();
+
+                } catch (error) {
+                    await uiUtils.showCustomAlert(error.message);
+                }
             },
 
             async confirmDeleteCache() {
@@ -6575,6 +6751,7 @@
                         name: newCache.name,
                         displayName: newCache.displayName,
                         model: newCache.model.replace('models/', ''), // "models/" プレフィックスを削除
+                        expireTime: newCache.expireTime, // 有効期限を保存
                     });
                     state.settings.activeCacheName = newCache.name;
 
