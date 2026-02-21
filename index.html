@@ -4138,15 +4138,21 @@
              // --- Context Cache API ---
             async createCache(displayName, content, model, ttlMinutes) {
                 if (!state.settings.apiKey) throw new Error("APIキーが設定されていません。");
-                // 【修正】URLから /models/ を除外し、正しいエンドポイントを指定
                 const endpoint = `https://generativelanguage.googleapis.com/v1beta/cachedContents?key=${state.settings.apiKey}`;
+                
+                // 【修正】contentsを配列に変更し、role: "user" を追加
                 const requestBody = {
                     displayName: displayName,
                     model: `models/${model}`,
-                    contents: { parts: [{ text: content }] },
+                    contents: [
+                        {
+                            role: "user",
+                            parts: [{ text: content }]
+                        }
+                    ],
                 };
 
-                // 【修正】TTLフォーマットをAPI仕様に適合（"秒数s"の文字列）
+                // TTLフォーマットをAPI仕様に適合
                 if (ttlMinutes !== null && ttlMinutes >= 0) {
                     requestBody.ttl = ttlMinutes === 0 ? "518400s" : `${ttlMinutes * 60}s`;
                 }
