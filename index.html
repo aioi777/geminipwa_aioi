@@ -3455,6 +3455,11 @@
 
             // 設定をUIに適用
             applySettingsToUI() {
+                // 【追加】保存されたモデルリストがあれば、静的リストを破棄して再構築
+                if (state.settings.cachedModelList && state.settings.cachedModelList.length > 0) {
+                    this.buildModelSelectOptions(state.settings.cachedModelList);
+                }
+
                 elements.apiKeyInput.value = state.settings.apiKey || '';
                 elements.modelNameSelect.value = state.settings.modelName || DEFAULT_MODEL;
                 elements.streamingOutputCheckbox.checked = state.settings.streamingOutput;
@@ -3840,6 +3845,23 @@
                 } else {
                     elements.confirmAttachBtn.disabled = state.selectedFilesForUpload.length === 0;
                 }
+            },
+
+            buildModelSelectOptions(modelsArray) {
+                const select = elements.modelNameSelect;
+                const userGroup = elements.userDefinedModelsGroup; // ユーザー指定枠は退避
+                select.innerHTML = ''; // 全クリア
+
+                const apiGroup = document.createElement('optgroup');
+                apiGroup.label = 'API取得モデル';
+                
+                // 文字列連結で一気にDOM生成（パフォーマンス最適化）
+                apiGroup.innerHTML = modelsArray.map(m => 
+                    `<option value="${m.id}">${m.name} (${m.id})</option>`
+                ).join('');
+
+                select.appendChild(apiGroup);
+                if (userGroup) select.appendChild(userGroup);
             },
         };
 
@@ -4535,39 +4557,32 @@
                     if (!res.ok) throw new Error(res.status);
                     
                     const data = await res.json();
-                    // geminiを含むモデルを抽出し、optionタグ文字列を生成
-                    const html = data.models
+                    
+                    // geminiを含み、必要な情報(id, name)だけを抽出して軽量化
+                    const newList = data.models
                         .filter(m => m.name.includes('gemini'))
-                        .map(m => {
-                            const val = m.name.replace('models/', '');
-                            return `<option value="${val}">${m.displayName} (${val})</option>`;
-                        }).join('');
+                        .map(m => ({
+                            id: m.name.replace('models/', ''),
+                            name: m.displayName || m.name.replace('models/', '')
+                        }));
                     
-                    let apiGroup = document.getElementById('api-models-group');
-                    if (!apiGroup) {
-                        apiGroup = document.createElement('optgroup');
-                        apiGroup.id = 'api-models-group';
-                        apiGroup.label = 'API取得モデル (最新)';
-                        // ユーザー指定グループの直前に挿入
-                        elements.modelNameSelect.insertBefore(apiGroup, elements.userDefinedModelsGroup);
-                        // 古いハードコードのグループを全削除（DOM軽量化）
-                        Array.from(elements.modelNameSelect.querySelectorAll('optgroup:not(#user-defined-models-group):not(#api-models-group)')).forEach(el => el.remove());
-                    }
+                    // stateに一時保存（この時点ではDB未保存）
+                    state.settings.cachedModelList = newList;
                     
-                    apiGroup.innerHTML = html;
+                    // UIを即時構築
+                    uiUtils.buildModelSelectOptions(newList);
                     
-                    // 選択状態を復元（存在しない場合はAPI取得リストの先頭が自動選択される）
+                    // 選択状態を復元
                     elements.modelNameSelect.value = state.settings.modelName;
                     
-                    uiUtils.showCustomAlert("最新のモデルリストを取得しました。設定を保存してください。");
+                    uiUtils.showCustomAlert("最新のモデルリストを取得しました。「設定を保存」を押して確定してください。");
                 } catch(e) {
-                    uiUtils.showCustomAlert("モデルリストの取得に失敗しました: " + e.message);
+                    uiUtils.showCustomAlert("モデルリストの取得に失敗: " + e.message);
                 } finally {
                     elements.fetchModelsBtn.textContent = "↻ リスト更新";
                     elements.fetchModelsBtn.disabled = false;
                 }
             },
-
             // popstateイベントハンドラ (戻るボタン/ジェスチャー)
             handlePopState(event) {
                 // 履歴スタックから遷移先の画面名を取得、なければチャット画面
@@ -5453,8 +5468,9 @@
                      historySortOrder: elements.historySortOrderSelect.value,
                      darkMode: elements.darkModeToggle.checked,
                      hideSystemPromptInChat: elements.hideSystemPromptToggle.checked, // SP非表示設定
-                     enableGrounding: elements.enableGroundingToggle.checked, // ネット検索設定を取得
+                     enableGrounding: elements.enableGroundingToggle.checked,
                      activeCacheName: elements.contextCacheSelect.value,
+                     cachedModelList: state.settings.cachedModelList, // 【追加】取得済みリストを保存対象に含める
                  };
 
                  // --- 数値入力のバリデーション ---
