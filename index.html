@@ -1984,8 +1984,13 @@
     <dialog id="fileUploadDialog" class="custom-dialog">
         <div class="dialog-content">
             <div class="file-upload-area">
-                <input type="file" id="file-input" multiple webkitdirectory class="hidden">
+                <!-- webkitdirectoryを削除（ファイル専用にする） -->
+                <input type="file" id="file-input" multiple class="hidden">
+                <!-- フォルダ専用を新設 -->
+                <input type="file" id="folder-input" webkitdirectory directory class="hidden">
+                
                 <button id="select-files-btn" class="dialog-button">ファイルを選択</button>
+                <button id="select-folder-btn" class="dialog-button" style="margin-left: 5px;">フォルダを選択</button>
             </div>
             <!-- ファイルフィルター入力欄を追加 -->
             <div class="file-filter-area" style="margin: 10px 0;">
@@ -2209,7 +2214,9 @@
             attachFileBtn: document.getElementById('attach-file-btn'),
             fileUploadDialog: document.getElementById('fileUploadDialog'),
             fileInput: document.getElementById('file-input'),
+            folderInput: document.getElementById('folder-input'), // 追加
             selectFilesBtn: document.getElementById('select-files-btn'),
+            selectFolderBtn: document.getElementById('select-folder-btn'), // 追加
             selectedFilesList: document.getElementById('selected-files-list'),
             confirmAttachBtn: document.getElementById('confirm-attach-btn'),
             cancelAttachBtn: document.getElementById('cancel-attach-btn'),
@@ -4448,12 +4455,20 @@
                 // ファイルアップロード関連のイベントリスナー
                 elements.attachFileBtn.addEventListener('click', () => uiUtils.showFileUploadDialog());
                 elements.selectFilesBtn.addEventListener('click', () => elements.fileInput.click());
+                elements.selectFolderBtn.addEventListener('click', () => elements.folderInput.click()); // 追加
+
                  // fileInput の change イベントリスナー
                 elements.fileInput.addEventListener('change', (event) => {
                     this.handleFileSelection(event.target.files);
-                    // 処理が終わったら input の値をリセットする
                     event.target.value = null;
                 });
+
+                // folderInput の change イベントリスナー (追加)
+                elements.folderInput.addEventListener('change', (event) => {
+                    this.handleFileSelection(event.target.files);
+                    event.target.value = null;
+                });
+
                 elements.confirmAttachBtn.addEventListener('click', () => this.confirmAttachment());
                 elements.cancelAttachBtn.addEventListener('click', () => this.cancelAttachment());
 
