@@ -2072,7 +2072,6 @@
         const DEFAULT_MAX_TOKENS = 4000;
         const DEFAULT_TOP_K = 40;
         const DEFAULT_TOP_P = 0.95;
-        const DEFAULT_FONT_FAMILY = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'; // デフォルトフォント
         const CHAT_TITLE_LENGTH = 15;
         const TEXTAREA_MAX_HEIGHT = 120;
         const GEMINI_API_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models/';
@@ -2263,18 +2262,12 @@
                 contextCaches: [], // { name: string, displayName: string, model: string }
                 activeCacheName: '', // 現在選択中のキャッシュのname (e.g., "cachedContents/...")
             },
-            backgroundImageUrl: null, // 生成されたオブジェクトURL (DBには保存しない)
             isSending: false,
             abortController: null,
             partialStreamContent: '',
             partialThoughtStreamContent: '', // Thought Summary ストリーミング用バッファ
             editingMessageIndex: null,
             isEditingSystemPrompt: false, // システムプロンプト編集中フラグ
-            touchStartX: 0, // スワイプ開始X座標
-            touchStartY: 0, // スワイプ開始Y座標
-            touchEndX: 0,   // スワイプ終了X座標
-            touchEndY: 0,   // スワイプ終了Y座標
-            isSwiping: false, // スワイプ中フラグ
             isZoomed: false, // ズーム状態フラグ
             currentScreen: 'chat', // 現在表示中の画面名 (戻るボタン制御用)
             // ファイルアップロード用状態
@@ -3474,7 +3467,6 @@
                 // コンテキストキャッシュUIを更新
                 this.updateCacheUI();
 
-                this.updateBackgroundSettingsUI(); // 背景画像UI要素を更新
                 this.applyDarkMode(); // 読み込み/更新された設定を反映してテーマを適用 (チェックボックス設定後)
                 this.toggleSystemPromptVisibility(); // SP表示/非表示を適用
             },
@@ -5510,7 +5502,6 @@
                             darkMode: window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false,
                             hideSystemPromptInChat: false, // SP非表示もリセット
                         };
-                        state.backgroundImageUrl = null;
 
                         // リセットされた状態をUIに適用
                         document.documentElement.style.setProperty('--chat-background-image', 'none'); // 背景スタイルリセット
