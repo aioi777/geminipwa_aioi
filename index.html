@@ -2042,7 +2042,7 @@
     </dialog>
 
     <!-- コンテキストキャッシュ更新ダイアログ -->
-    <dialog id="updateCacheDialog" class="custom-dialog">
+    <dialog id="update-cache-dialog" class="custom-dialog">
         <h3 style="margin-top:0; margin-bottom:15px;">キャッシュ期間更新</h3>
         <p class="dialog-message">キャッシュ名: <strong id="update-cache-display-name"></strong></p>
         
@@ -4481,7 +4481,11 @@
                 elements.updateCacheDialog.querySelector('.dialog-cancel-btn').addEventListener('click', () => {
                     elements.updateCacheDialog.close();
                 });
-                elements.selectCacheFilesBtn.addEventListener('click', () => elements.cacheFileInput.click());
+                elements.selectCacheFilesBtn.addEventListener('click', () => {
+                    console.log("selectCacheFilesBtn clicked."); // デバッグログ
+                    console.log("cacheFileInput element:", elements.cacheFileInput); // デバッグログ
+                    elements.cacheFileInput.click();
+                });
                 elements.cacheFileInput.addEventListener('change', (event) => {
                     appLogic.handleCacheFileSelection(event.target.files);
                     event.target.value = null; // 同じファイルを選択できるようにリセット
@@ -4492,6 +4496,7 @@
                 });
                 // モデルを変更したら、互換性のあるキャッシュリストを更新する
                 elements.modelNameSelect.addEventListener('change', () => uiUtils.updateCacheUI());
+                console.log("All event listeners set up."); // デバッグ用ログ
             },
 
             // popstateイベントハンドラ (戻るボタン/ジェスチャー)
