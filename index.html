@@ -2017,7 +2017,9 @@
         
         <div class="file-upload-area" style="text-align: left; margin-bottom: 5px;">
             <input type="file" id="cache-file-input" multiple accept=".txt,text/plain" class="hidden">
+            <input type="file" id="cache-folder-input" webkitdirectory directory class="hidden">
             <button id="select-cache-files-btn" class="settings-action-button" type="button" style="padding: 8px 12px; font-size: 13px;">ファイルから読込</button>
+            <button id="select-cache-folder-btn" class="settings-action-button" type="button" style="padding: 8px 12px; font-size: 13px; margin-left: 5px;">フォルダから読込</button>
         </div>
         <ul id="cache-selected-files-list" style="list-style: none; padding: 0; margin: 0 0 10px 0; max-height: 80px; overflow-y: auto; font-size: 12px;">
             <!-- Selected files will be listed here -->
@@ -2220,6 +2222,8 @@
             cacheTtlInput: document.getElementById('cache-ttl-input'),
             cacheFileInput: document.getElementById('cache-file-input'),
             selectCacheFilesBtn: document.getElementById('select-cache-files-btn'),
+            cacheFolderInput: document.getElementById('cache-folder-input'),
+            selectCacheFolderBtn: document.getElementById('select-cache-folder-btn'),
             cacheSelectedFilesList: document.getElementById('cache-selected-files-list'),
             // Cache Update UI
             updateCacheBtn: document.getElementById('update-cache-btn'),
@@ -4477,18 +4481,22 @@
                 elements.createCacheDialog.querySelector('.dialog-cancel-btn').addEventListener('click', () => {
                     elements.createCacheDialog.close();
                 });
-                elements.updateCacheDialog.querySelector('.dialog-ok-btn').addEventListener('click', () => this.handleUpdateCache());
-                elements.updateCacheDialog.querySelector('.dialog-cancel-btn').addEventListener('click', () => {
+                 elements.updateCacheDialog.querySelector('.dialog-cancel-btn').addEventListener('click', () => {
                     elements.updateCacheDialog.close();
                 });
                 elements.selectCacheFilesBtn.addEventListener('click', () => {
-                    console.log("selectCacheFilesBtn clicked."); // デバッグログ
-                    console.log("cacheFileInput element:", elements.cacheFileInput); // デバッグログ
                     elements.cacheFileInput.click();
                 });
                 elements.cacheFileInput.addEventListener('change', (event) => {
                     appLogic.handleCacheFileSelection(event.target.files);
                     event.target.value = null; // 同じファイルを選択できるようにリセット
+                });
+                elements.selectCacheFolderBtn.addEventListener('click', () => {
+                    elements.cacheFolderInput.click();
+                });
+                elements.cacheFolderInput.addEventListener('change', (event) => {
+                    appLogic.handleCacheFileSelection(event.target.files);
+                    event.target.value = null; // リセット
                 });
                 elements.contextCacheSelect.addEventListener('change', () => {
                     state.settings.activeCacheName = elements.contextCacheSelect.value;
@@ -6431,17 +6439,37 @@
                 if (!fileList || fileList.length === 0) return;
 
                 elements.selectCacheFilesBtn.disabled = true;
+                elements.selectCacheFolderBtn.disabled = true;
                 elements.selectCacheFilesBtn.textContent = '読込中...';
                 elements.cacheSelectedFilesList.innerHTML = '<li>読込中...</li>';
+
+                // テキスト・コードファイルの簡易判定用拡張子リスト
+                const textExts = ['.txt','.md','.json','.js','.py','.html','.css','.ts','.jsx','.tsx','.java','.c','.cpp','.cs','.php','.rb','.go','.rs','.sh','.yml','.yaml','.csv','.xml'];
+                
+                const validFiles = Array.from(fileList).filter(f => {
+                    if (f.type.startsWith('text/')) return true;
+                    const ext = f.name.slice((Math.max(0, f.name.lastIndexOf(".")) || Infinity)).toLowerCase();
+                    return textExts.includes(ext);
+                });
+
+                if (validFiles.length === 0) {
+                    await uiUtils.showCustomAlert("読み込み可能なテキストファイルが見つかりませんでした。");
+                    elements.cacheSelectedFilesList.innerHTML = '';
+                    elements.selectCacheFilesBtn.disabled = false;
+                    elements.selectCacheFolderBtn.disabled = false;
+                    elements.selectCacheFilesBtn.textContent = 'ファイルから読込';
+                    return;
+                }
 
                 let combinedContent = '';
                 const fileNames = [];
 
-                const readPromises = Array.from(fileList).map(file => {
+                const readPromises = validFiles.map(file => {
                     return new Promise((resolve, reject) => {
                         const reader = new FileReader();
                         reader.onload = () => {
-                            fileNames.push(file.name);
+                            // フォルダ選択時は相対パスを保持してファイル名を表示
+                            fileNames.push(file.webkitRelativePath || file.name);
                             resolve(reader.result);
                         };
                         reader.onerror = reject;
@@ -6451,7 +6479,8 @@
 
                 try {
                     const contents = await Promise.all(readPromises);
-                    combinedContent = contents.join('\n\n/* --- ' + fileNames.join(', ') + ' --- */\n\n');
+                    // 以前の論理バグを修正し、各ファイルの内容の直前にファイル名ヘッダを挿入して結合
+                    combinedContent = contents.map((c, i) => `/* --- ${fileNames[i]} --- */\n${c}`).join('\n\n');
 
                     elements.cacheContentInput.value = combinedContent;
                     elements.cacheSelectedFilesList.innerHTML = fileNames.map(name => `<li title="${name}" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${name}</li>`).join('');
@@ -6462,6 +6491,7 @@
                     elements.cacheSelectedFilesList.innerHTML = '<li>エラーが発生しました</li>';
                 } finally {
                     elements.selectCacheFilesBtn.disabled = false;
+                    elements.selectCacheFolderBtn.disabled = false;
                     elements.selectCacheFilesBtn.textContent = 'ファイルから読込';
                 }
             },
