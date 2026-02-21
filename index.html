@@ -1740,13 +1740,14 @@
             </header>
             <main class="main-content">
                 <div class="settings-group">
-                    <h3>基本設定</h3>
-                    <label for="api-key">Gemini APIキー:</label>
-                    <input type="password" id="api-key" placeholder="APIキーを入力" aria-label="Gemini APIキー">
+                        <h3>基本設定</h3>
+                        <label for="api-key">Gemini APIキー:</label>
+                        <input type="password" id="api-key" placeholder="APIキーを入力" aria-label="Gemini APIキー">
 
-                    <label for="model-name">モデル名:</label>
-                    <select id="model-name" aria-label="モデル名">
-                        <optgroup label="Gemini 3.1">
+                        <!-- ボタンを追加し、右寄せ配置 -->
+                        <label for="model-name">モデル名: <button id="fetch-models-btn" type="button" style="font-size: 11px; padding: 2px 6px; cursor: pointer; float: right; background-color: var(--bg-button); color: var(--text-light); border: none; border-radius: 3px;">↻ リスト更新</button></label>
+                        <select id="model-name" aria-label="モデル名">
+                            <optgroup label="Gemini 3.1">
                             <!-- valueを正確なAPI識別子に変更。表示名(タグの中身)は任意でOK -->
                             <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro (Preview)</option>
                             <option value="gemini-3.1-flash-preview">Gemini 3.1 Flash (Preview)</option> <!-- 必要に応じてflashも正確な名前に -->
@@ -2164,6 +2165,7 @@
             cancelSystemPromptBtn: document.getElementById('cancel-system-prompt-btn'),
             // 設定要素
             apiKeyInput: document.getElementById('api-key'),
+            fetchModelsBtn: document.getElementById('fetch-models-btn'), // 追加
             modelNameSelect: document.getElementById('model-name'),
             userDefinedModelsGroup: document.getElementById('user-defined-models-group'), // ユーザー指定モデルのoptgroup
             streamingOutputCheckbox: document.getElementById('streaming-output'),
@@ -2274,8 +2276,9 @@
                 darkMode: false, // デフォルトはダークモードOFF
                 hideSystemPromptInChat: false, // SP非表示設定 (デフォルトfalse)
                 enableGrounding: false, //ネット検索設定 (デフォルトfalse)
-                contextCaches: [], // { name: string, displayName: string, model: string }
-                activeCacheName: '', // 現在選択中のキャッシュのname (e.g., "cachedContents/...")
+                contextCaches: [], 
+                activeCacheName: '', 
+                cachedModelList: [], // 【追加】APIから取得したモデルリストのキャッシュ
             },
             isSending: false,
             abortController: null,
@@ -4376,6 +4379,7 @@
                 elements.saveSettingsBtns.forEach(button => {
                     button.addEventListener('click', () => this.saveSettings());
                 });
+                elements.fetchModelsBtn.addEventListener('click', () => this.fetchAndUpdateModels()); // 追加
                 elements.updateAppBtn.addEventListener('click', () => this.updateApp());
                 elements.clearDataBtn.addEventListener('click', () => this.confirmClearAllData());
 
@@ -4517,6 +4521,51 @@
                 // モデルを変更したら、互換性のあるキャッシュリストを更新する
                 elements.modelNameSelect.addEventListener('change', () => uiUtils.updateCacheUI());
                 console.log("All event listeners set up."); // デバッグ用ログ
+            },
+
+            // モデルリストをAPIから取得して更新
+            async fetchAndUpdateModels() {
+                if (!state.settings.apiKey) return uiUtils.showCustomAlert("先にAPIキーを設定・保存してください。");
+                
+                elements.fetchModelsBtn.textContent = "取得中...";
+                elements.fetchModelsBtn.disabled = true;
+                
+                try {
+                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${state.settings.apiKey}`);
+                    if (!res.ok) throw new Error(res.status);
+                    
+                    const data = await res.json();
+                    // geminiを含むモデルを抽出し、optionタグ文字列を生成
+                    const html = data.models
+                        .filter(m => m.name.includes('gemini'))
+                        .map(m => {
+                            const val = m.name.replace('models/', '');
+                            return `<option value="${val}">${m.displayName} (${val})</option>`;
+                        }).join('');
+                    
+                    let apiGroup = document.getElementById('api-models-group');
+                    if (!apiGroup) {
+                        apiGroup = document.createElement('optgroup');
+                        apiGroup.id = 'api-models-group';
+                        apiGroup.label = 'API取得モデル (最新)';
+                        // ユーザー指定グループの直前に挿入
+                        elements.modelNameSelect.insertBefore(apiGroup, elements.userDefinedModelsGroup);
+                        // 古いハードコードのグループを全削除（DOM軽量化）
+                        Array.from(elements.modelNameSelect.querySelectorAll('optgroup:not(#user-defined-models-group):not(#api-models-group)')).forEach(el => el.remove());
+                    }
+                    
+                    apiGroup.innerHTML = html;
+                    
+                    // 選択状態を復元（存在しない場合はAPI取得リストの先頭が自動選択される）
+                    elements.modelNameSelect.value = state.settings.modelName;
+                    
+                    uiUtils.showCustomAlert("最新のモデルリストを取得しました。設定を保存してください。");
+                } catch(e) {
+                    uiUtils.showCustomAlert("モデルリストの取得に失敗しました: " + e.message);
+                } finally {
+                    elements.fetchModelsBtn.textContent = "↻ リスト更新";
+                    elements.fetchModelsBtn.disabled = false;
+                }
             },
 
             // popstateイベントハンドラ (戻るボタン/ジェスチャー)
