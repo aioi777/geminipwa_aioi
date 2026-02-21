@@ -2015,6 +2015,10 @@
                 <input type="file" id="file-input" multiple webkitdirectory class="hidden">
                 <button id="select-files-btn" class="dialog-button">ファイルを選択</button>
             </div>
+            <!-- ファイルフィルター入力欄を追加 -->
+            <div class="file-filter-area" style="margin: 10px 0;">
+                <input type="text" id="file-filter-input" placeholder="ファイル名でフィルタ..." class="dialog-input" style="margin-bottom: 0;">
+            </div>
             <ul id="selected-files-list">
                 <!-- 選択されたファイルがここに表示される -->
                 <!-- 例:
@@ -2240,6 +2244,7 @@
             selectedFilesList: document.getElementById('selected-files-list'),
             confirmAttachBtn: document.getElementById('confirm-attach-btn'),
             cancelAttachBtn: document.getElementById('cancel-attach-btn'),
+            fileFilterInput: document.getElementById('file-filter-input'),
 
             // コンテキストキャッシュUI
             contextCacheSelect: document.getElementById('context-cache-select'),
@@ -3856,15 +3861,24 @@
                 this.updateAttachmentBadgeVisibility();
             },
 
-            // 選択されたファイルリストのUIを更新 (変更なし、呼び出しタイミングが重要)
-            updateSelectedFilesUI() {
+            // 選択されたファイルリストのUIを更新
+            updateSelectedFilesUI(filterText = '') {
                 elements.selectedFilesList.innerHTML = ''; // リストをクリア
                 let totalSize = 0;
-                // selectedFilesForUpload には { file: File } が入っている
-                state.selectedFilesForUpload.forEach((item, index) => {
+                
+                const lowerCaseFilter = filterText.toLowerCase();
+                const filteredFiles = state.selectedFilesForUpload.filter(item => {
+                    const displayName = item.file.webkitRelativePath || item.file.name;
+                    return displayName.toLowerCase().includes(lowerCaseFilter);
+                });
+
+                filteredFiles.forEach((item, index) => { // filteredFiles をループ
+                    // 元のindexを保持するために、selectedFilesForUploadから探す
+                    const originalIndex = state.selectedFilesForUpload.indexOf(item);
+
                     const li = document.createElement('li');
                     li.classList.add('selected-file-item');
-                    li.dataset.fileIndex = index;
+                    li.dataset.fileIndex = originalIndex; // 元のインデックスをセット
 
                     const infoDiv = document.createElement('div');
                     infoDiv.classList.add('selected-file-info');
@@ -3877,7 +3891,7 @@
 
                     const sizeSpan = document.createElement('span');
                     sizeSpan.classList.add('selected-file-size');
-                    sizeSpan.textContent = formatFileSize(item.file.size); // File オブジェクトからサイズ取得
+                    sizeSpan.textContent = formatFileSize(item.file.size);
 
                     infoDiv.appendChild(nameSpan);
                     infoDiv.appendChild(sizeSpan);
@@ -3886,7 +3900,7 @@
                     removeBtn.classList.add('remove-file-btn');
                     removeBtn.title = '削除';
                     removeBtn.textContent = '×';
-                    removeBtn.onclick = () => appLogic.removeSelectedFile(index);
+                    removeBtn.onclick = () => appLogic.removeSelectedFile(originalIndex); // 元のインデックスで削除
 
                     li.appendChild(infoDiv);
                     li.appendChild(removeBtn);
@@ -3895,14 +3909,12 @@
                     totalSize += item.file.size;
                 });
 
-                // 合計サイズチェック
-                if (totalSize > MAX_TOTAL_ATTACHMENT_SIZE) {
+                // 合計サイズチェック (注意: ここは全ファイルの合計サイズで判断すべき)
+                const totalOriginalSize = state.selectedFilesForUpload.reduce((sum, item) => sum + item.file.size, 0);
+                if (totalOriginalSize > MAX_TOTAL_ATTACHMENT_SIZE) {
                     elements.confirmAttachBtn.disabled = true;
-                    // アラートはファイル追加時に行う方が親切かもしれない
-                    // uiUtils.showCustomAlert(`合計ファイルサイズが大きすぎます (${formatFileSize(MAX_TOTAL_ATTACHMENT_SIZE)}以下にしてください)。`);
                 } else {
-                    // サイズが問題なければ常に有効化
-                    elements.confirmAttachBtn.disabled = false;
+                    elements.confirmAttachBtn.disabled = state.selectedFilesForUpload.length === 0;
                 }
             },
         };
@@ -4566,6 +4578,12 @@
                 });
                 elements.confirmAttachBtn.addEventListener('click', () => this.confirmAttachment());
                 elements.cancelAttachBtn.addEventListener('click', () => this.cancelAttachment());
+
+                // フィルター入力イベント
+                elements.fileFilterInput.addEventListener('input', () => {
+                    uiUtils.updateSelectedFilesUI(elements.fileFilterInput.value);
+                });
+
                 // ダイアログ自体を閉じた時もキャンセル扱い
                 elements.fileUploadDialog.addEventListener('close', () => {
                     if (elements.fileUploadDialog.returnValue !== 'ok') {
