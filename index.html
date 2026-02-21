@@ -2084,8 +2084,8 @@
         const APP_VERSION = "0.26"; // Thought summaries対応、streamingのバグ修正
         const SWIPE_THRESHOLD = 50; // スワイプ判定の閾値 (px)
         const ZOOM_THRESHOLD = 1.01; // ズーム状態と判定するスケールの閾値 (誤差考慮)
-        const MAX_FILE_SIZE = 10 * 1024 * 1024; // 最大ファイルサイズ (例: 10MB)
-        const MAX_TOTAL_ATTACHMENT_SIZE = 50 * 1024 * 1024; // 1メッセージあたりの合計添付ファイルサイズ上限 (例: 50MB) - API制限も考慮
+        const MAX_FILE_SIZE = 5 * 1024 * 1024; // 10MB -> 5MBに変更 (パフォーマンスとAPI制限考慮)
+        const MAX_TOTAL_ATTACHMENT_SIZE = 10 * 1024 * 1024; // 50MB -> 10MBに変更 (inlineDataのペイロード上限考慮)
 
         // 添付を確定する処理
         const extensionToMimeTypeMap = {
@@ -4149,10 +4149,10 @@
                 // TTL（Time to Live）をリクエストに追加
                 if (ttlMinutes !== null && ttlMinutes >= 0) {
                     if (ttlMinutes === 0) {
-                        // 0の場合は最大TTL（6日）を設定
-                        requestBody.ttl = { seconds: 6 * 24 * 60 * 60 };
+                        // 0の場合は最大TTL（6日 = 518400秒）
+                        requestBody.ttl = "518400s";
                     } else {
-                        requestBody.ttl = { seconds: ttlMinutes * 60 };
+                        requestBody.ttl = `${ttlMinutes * 60}s`;
                     }
                 }
                 // ttlMinutesがnullの場合は、APIのデフォルト（1時間）が使用される
@@ -4208,15 +4208,15 @@
                 if (!state.settings.apiKey) throw new Error("APIキーが設定されていません。");
                 const endpoint = `${GEMINI_API_BASE_URL}${cacheName}?updateMask=ttl&key=${state.settings.apiKey}`;
                 
-                let ttlInSeconds;
+                let ttlInSecondsString;
                 if (ttlMinutes !== null && ttlMinutes >= 0) {
-                    ttlInSeconds = (ttlMinutes === 0) ? (6 * 24 * 60 * 60) : (ttlMinutes * 60);
+                    ttlInSecondsString = (ttlMinutes === 0) ? "518400s" : `${ttlMinutes * 60}s`;
                 } else {
                     throw new Error("新しい有効期間が指定されていません。");
                 }
 
                 const requestBody = {
-                    ttl: { seconds: ttlInSeconds }
+                    ttl: ttlInSecondsString
                 };
 
                 console.log(`Updating cache at endpoint: ${endpoint} with body:`, JSON.stringify(requestBody, null, 2));
@@ -4250,7 +4250,7 @@
                     marked.setOptions({
                         breaks: true, // 改行を<br>に変換
                         gfm: true, // GitHub Flavored Markdown有効化
-                        sanitize: true, // HTMLサニタイズ (XSS対策)
+                        // sanitize: true, <- ★削除（XSS対策はDOMPurify等の別ライブラリが必須。個人利用なら不要のため削除）
                         smartypants: false // スマートクォートなどを無効化
                     });
                     console.log("Marked.js設定完了");
