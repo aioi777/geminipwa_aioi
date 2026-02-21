@@ -2091,16 +2091,19 @@
         const extensionToMimeTypeMap = {
             // Text Data
             'pdf': 'application/pdf',
-            'js': 'text/javascript',   // 一般的な方を選択
-            'py': 'text/x-python',     // 一般的な方を選択
+            'js': 'text/javascript',
+            'py': 'text/x-python',
             'txt': 'text/plain',
             'html': 'text/html',
-            'htm': 'text/html',        // .htm も考慮
+            'htm': 'text/html',
             'css': 'text/css',
             'md': 'text/md',
             'csv': 'text/csv',
             'xml': 'text/xml',
             'rtf': 'text/rtf',
+            'yaml': 'text/yaml',   // 追加
+            'yml': 'text/yaml',    // 追加
+            'dart': 'text/plain',  // 追加
 
             // Image Data
             'png': 'image/png',
@@ -4132,33 +4135,24 @@
                  }
             },
 
-            // --- Context Cache API ---
+             // --- Context Cache API ---
             async createCache(displayName, content, model, ttlMinutes) {
                 if (!state.settings.apiKey) throw new Error("APIキーが設定されていません。");
-                const endpoint = `${GEMINI_API_BASE_URL}cachedContents?key=${state.settings.apiKey}`;
+                // 【修正】URLから /models/ を除外し、正しいエンドポイントを指定
+                const endpoint = `https://generativelanguage.googleapis.com/v1beta/cachedContents?key=${state.settings.apiKey}`;
                 const requestBody = {
                     displayName: displayName,
-                    model: `models/${model}`, // APIは "models/model-name" 形式を期待
-                    contents: {
-                        parts: [
-                            { text: content }
-                        ]
-                    },
+                    model: `models/${model}`,
+                    contents: { parts: [{ text: content }] },
                 };
 
-                // TTL（Time to Live）をリクエストに追加
+                // 【修正】TTLフォーマットをAPI仕様に適合（"秒数s"の文字列）
                 if (ttlMinutes !== null && ttlMinutes >= 0) {
-                    if (ttlMinutes === 0) {
-                        // 0の場合は最大TTL（6日 = 518400秒）
-                        requestBody.ttl = "518400s";
-                    } else {
-                        requestBody.ttl = `${ttlMinutes * 60}s`;
-                    }
+                    requestBody.ttl = ttlMinutes === 0 ? "518400s" : `${ttlMinutes * 60}s`;
                 }
-                // ttlMinutesがnullの場合は、APIのデフォルト（1時間）が使用される
 
                 console.log("Creating cache with body:", JSON.stringify(requestBody, null, 2));
-                uiUtils.setSendingState(true); // ローディング表示
+                uiUtils.setSendingState(true);
 
                 try {
                     const response = await fetch(endpoint, {
@@ -4181,11 +4175,11 @@
 
             async deleteCache(cacheName) {
                 if (!state.settings.apiKey) throw new Error("APIキーが設定されていません。");
-                // cacheName は "cachedContents/..." の形式
-                const endpoint = `${GEMINI_API_BASE_URL}${cacheName}?key=${state.settings.apiKey}`;
+                // 【修正】URLから /models/ を除外 (cacheName に "cachedContents/..." が含まれる)
+                const endpoint = `https://generativelanguage.googleapis.com/v1beta/${cacheName}?key=${state.settings.apiKey}`;
                 
                 console.log(`Deleting cache at endpoint: ${endpoint}`);
-                uiUtils.setSendingState(true); // ローディング表示
+                uiUtils.setSendingState(true);
 
                 try {
                     const response = await fetch(endpoint, {
@@ -4206,17 +4200,13 @@
 
             async updateCache(cacheName, ttlMinutes) {
                 if (!state.settings.apiKey) throw new Error("APIキーが設定されていません。");
-                const endpoint = `${GEMINI_API_BASE_URL}${cacheName}?updateMask=ttl&key=${state.settings.apiKey}`;
+                // 【修正】URLから /models/ を除外
+                const endpoint = `https://generativelanguage.googleapis.com/v1beta/${cacheName}?updateMask=ttl&key=${state.settings.apiKey}`;
                 
-                let ttlInSecondsString;
-                if (ttlMinutes !== null && ttlMinutes >= 0) {
-                    ttlInSecondsString = (ttlMinutes === 0) ? "518400s" : `${ttlMinutes * 60}s`;
-                } else {
-                    throw new Error("新しい有効期間が指定されていません。");
-                }
-
+                // 【修正】TTLフォーマットをAPI仕様に適合
+                if (ttlMinutes === null || ttlMinutes < 0) throw new Error("新しい有効期間が指定されていません。");
                 const requestBody = {
-                    ttl: ttlInSecondsString
+                    ttl: ttlMinutes === 0 ? "518400s" : `${ttlMinutes * 60}s`
                 };
 
                 console.log(`Updating cache at endpoint: ${endpoint} with body:`, JSON.stringify(requestBody, null, 2));
@@ -6443,8 +6433,7 @@
                 elements.selectCacheFilesBtn.textContent = '読込中...';
                 elements.cacheSelectedFilesList.innerHTML = '<li>読込中...</li>';
 
-                // テキスト・コードファイルの簡易判定用拡張子リスト
-                const textExts = ['.txt','.md','.json','.js','.py','.html','.css','.ts','.jsx','.tsx','.java','.c','.cpp','.cs','.php','.rb','.go','.rs','.sh','.yml','.yaml','.csv','.xml'];
+                const textExts = ['.txt','.md','.json','.js','.py','.html','.css','.ts','.jsx','.tsx','.java','.c','.cpp','.cs','.php','.rb','.go','.rs','.sh','.yml','.yaml','.csv','.xml','.dart']; // .dart を追加
                 
                 const validFiles = Array.from(fileList).filter(f => {
                     if (f.type.startsWith('text/')) return true;
@@ -6461,29 +6450,40 @@
                     return;
                 }
 
-                let combinedContent = '';
-                const fileNames = [];
-
-                const readPromises = validFiles.map(file => {
-                    return new Promise((resolve, reject) => {
-                        const reader = new FileReader();
-                        reader.onload = () => {
-                            // フォルダ選択時は相対パスを保持してファイル名を表示
-                            fileNames.push(file.webkitRelativePath || file.name);
-                            resolve(reader.result);
-                        };
-                        reader.onerror = reject;
-                        reader.readAsText(file, 'UTF-8');
-                    });
+                // FileReaderコールバックを廃止し、arrayBufferとTextDecoderによる高速フォールバックへ変更
+                const readPromises = validFiles.map(async (file) => {
+                    const name = file.webkitRelativePath || file.name;
+                    const buffer = await file.arrayBuffer(); // 生のバイト列を取得
+                    let text = '';
+                    
+                    try {
+                        // まずUTF-8として厳格にデコード (不正なバイトがあれば fatal: true により例外発生)
+                        text = new TextDecoder('utf-8', { fatal: true }).decode(buffer);
+                    } catch (e) {
+                        try {
+                            // エラー時は日本の環境で最も多い Shift_JIS で再試行
+                            text = new TextDecoder('shift_jis', { fatal: true }).decode(buffer);
+                        } catch (e2) {
+                            try {
+                                // さらにEUC-JPも試行
+                                text = new TextDecoder('euc-jp', { fatal: true }).decode(buffer);
+                            } catch (e3) {
+                                // 最終手段: 文字化け覚悟で標準UTF-8読込 (置換文字が入る)
+                                text = new TextDecoder('utf-8').decode(buffer);
+                            }
+                        }
+                    }
+                    return { name, text }; // 名前とテキストをセットで返すことで非同期の順序ズレを防止
                 });
 
                 try {
-                    const contents = await Promise.all(readPromises);
-                    // 以前の論理バグを修正し、各ファイルの内容の直前にファイル名ヘッダを挿入して結合
-                    combinedContent = contents.map((c, i) => `/* --- ${fileNames[i]} --- */\n${c}`).join('\n\n');
+                    const results = await Promise.all(readPromises); // resultsは {name, text} の配列になる
+
+                    // map処理を簡略化し、文字化けなく結合
+                    const combinedContent = results.map(r => `/* --- ${r.name} --- */\n${r.text}`).join('\n\n');
 
                     elements.cacheContentInput.value = combinedContent;
-                    elements.cacheSelectedFilesList.innerHTML = fileNames.map(name => `<li title="${name}" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${name}</li>`).join('');
+                    elements.cacheSelectedFilesList.innerHTML = results.map(r => `<li title="${r.name}" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${r.name}</li>`).join('');
 
                 } catch (error) {
                     console.error("Error reading files for cache:", error);

@@ -1,6 +1,6 @@
 // sw.js
 
-const CACHE_NAME = 'gemini-pwa-cache-v1'; // キャッシュ名を変更すると強制的に更新がかかる場合がある
+const CACHE_NAME = 'gemini-pwa-cache-v2'; 
 const urlsToCache = [
   './', // ルートパス (index.html を指すことが多い)
   './index.html',
@@ -31,72 +31,47 @@ self.addEventListener('install', (event) => {
 
 // フェッチイベントの処理
 self.addEventListener('fetch', (event) => {
+  // 【修正・追加】
+  // Gemini APIへの通信、またはGET以外の通信(POST, PATCH, DELETE等)は即座にバイパス。
+  // event.respondWith() を呼ばずに return することで、ブラウザ標準の通信機構(CORS含む)に処理を丸投げし、エラーを防ぐ。
+  if (event.request.method !== 'GET' || event.request.url.includes('generativelanguage.googleapis.com')) {
+    return;
+  }
+
   const requestUrl = new URL(event.request.url);
 
-  // APIリクエスト (Google APIへのPOST) はキャッシュ戦略から除外し、常にネットワークへ
-  if (requestUrl.hostname === 'generativelanguage.googleapis.com' && event.request.method === 'POST') {
-    event.respondWith(fetch(event.request));
-    return; // このリクエストに対するService Workerの処理はここで終了
-  }
+  // 【削除】
+  // 以前のPOST回避ロジック（if (requestUrl.hostname === ... && event.request.method === 'POST') { event.respondWith(...) }）は不要かつエラー原因のため削除。
 
   // それ以外のリクエスト (主にGET) はキャッシュ優先戦略 (Cache falling back to network)
   event.respondWith(
     caches.match(event.request)
       .then((response) => {
-        // キャッシュヒットした場合
-        if (response) {
-          // console.log('SW: Serving from cache:', event.request.url);
-          return response;
-        }
+        if (response) return response;
 
-        // キャッシュミスした場合、ネットワークから取得
-        // console.log('SW: Fetching from network:', event.request.url);
-        return fetch(event.request).then(
-          (networkResponse) => {
-            // ネットワークから正常に取得できた場合
-            // オプション: 取得したリソースをキャッシュに追加する (GETリクエストのみ)
-            // ここでは urlsToCache に含まれるものだけを動的にキャッシュする例
+        return fetch(event.request).then((networkResponse) => {
             if (networkResponse && networkResponse.status === 200 && event.request.method === 'GET') {
-               // urlsToCache に含まれるパスかチェック (完全一致またはルートパス)
                const isCachable = urlsToCache.some(url => {
-                   // './' は requestUrl.pathname が '/' または '/index.html' にマッチするかで判断
                    if (url === './') return requestUrl.pathname === '/' || requestUrl.pathname === '/index.html';
-                   // それ以外はパス部分が一致するかで判断
-                   return requestUrl.pathname.endsWith(url.substring(1)); // './' を除いて比較
+                   return requestUrl.pathname.endsWith(url.substring(1));
                });
 
                if (isCachable) {
-                    // console.log('SW: Caching new resource:', event.request.url);
-                    const responseToCache = networkResponse.clone(); // レスポンスは一度しか読めないのでクローンする
-                    caches.open(CACHE_NAME)
-                      .then(cache => {
+                    const responseToCache = networkResponse.clone();
+                    caches.open(CACHE_NAME).then(cache => {
                         cache.put(event.request, responseToCache);
-                      });
+                    });
                }
             }
-            return networkResponse; // 取得したレスポンスをブラウザに返す
-          }
-        ).catch(error => {
-          // ネットワークフェッチが失敗した場合 (オフラインなど)
+            return networkResponse;
+        }).catch(error => {
           console.error('SW: Fetch failed for:', event.request.url, error);
-          // ここでオフライン用の代替レスポンスを返すこともできる
-          // 例: return new Response('Network error', { status: 503, statusText: 'Service Unavailable' });
-          // ユーザーにオフラインであることを示すための基本的なJSONレスポンス例
           if (event.request.headers.get('accept').includes('application/json')) {
             return new Response(JSON.stringify({ error: 'Offline or network error' }), {
-              status: 503, // Service Unavailable
-              headers: { 'Content-Type': 'application/json' }
+              status: 503, headers: { 'Content-Type': 'application/json' }
             });
           }
-          // HTMLページへのナビゲーションリクエストならオフラインページを返すなど
-          // if (event.request.mode === 'navigate') {
-          //   return caches.match('./offline.html');
-          // }
-          // その他の場合は、デフォルトのエラーレスポンスを返す
-          return new Response('Network error occurred.', {
-            status: 503,
-            statusText: 'Service Unavailable'
-          });
+          return new Response('Network error occurred.', { status: 503, statusText: 'Service Unavailable' });
         });
       })
   );
