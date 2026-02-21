@@ -916,8 +916,6 @@
         .history-item-actions .js-edit-title-btn:hover { background-color: var(--bg-button-edit-hover); }
         .history-item-actions .js-delete-btn { background-color: var(--bg-button-delete); }
         .history-item-actions .js-delete-btn:hover { background-color: var(--bg-button-delete-hover); }
-        .history-item-actions .js-duplicate-btn { background-color: var(--bg-button-duplicate); }
-        .history-item-actions .js-duplicate-btn:hover { background-color: var(--bg-button-duplicate-hover); }
         .history-item-actions .js-export-btn { background-color: var(--bg-button-export); }
         .history-item-actions .js-export-btn:hover { background-color: var(--bg-button-export-hover); }
 
@@ -1723,7 +1721,6 @@
                             <div class="history-item-actions">
                                 <button class="js-edit-title-btn" title="タイトル編集">✎</button>
                                 <button class="js-export-btn" title="出力">出力</button>
-                                <button class="js-duplicate-btn" title="複製">複製</button>
                                 <button class="js-delete-btn" title="削除">削除</button>
                             </div>
                         </div>
@@ -1899,36 +1896,13 @@
                         ※ キャッシュはモデルと紐づきます。モデルを切り替えるとキャッシュも再選択してください。
                     </p>
                 </div>
-                <div class="settings-group">
-                    <h3>イメージ画像</h3>
-                    <label>チャット画面の背景画像:</label>
-                    <div class="image-upload-controls">
-                        <!-- 非表示のファイル入力 -->
-                        <input type="file" id="background-image-input" accept="image/jpeg, image/png, image/gif, image/webp" class="hidden">
-                        <!-- 表示されるアップロードボタン -->
-                        <button id="upload-background-btn" class="settings-action-button" type="button">画像を選択...</button>
-                        <!-- サムネイルプレビュー -->
-                        <img id="background-thumbnail" src="" alt="背景画像プレビュー" class="background-thumbnail hidden">
-                        <!-- 削除ボタン (初期非表示) -->
-                        <button id="delete-background-btn" class="settings-delete-button hidden" type="button">画像を削除</button>
-                    </div>
-                     <p style="font-size: 11px; color: var(--text-secondary); margin-top: 8px;">
-                       ※ 画像はブラウザ内のデータベースに保存。<br>
-                       ※ 可読性のため画像の上に半透明のレイヤーを表示。
-                     </p>
-                </div>
+
 
                 <div class="settings-group">
                    <h3>その他設定</h3>
                     <label class="checkbox-label">
                        <input type="checkbox" id="enter-to-send">
                        Enterキーで送信する
-                   </label>
-                   <p style="height:10px"></p>
-                   <!-- ジェスチャー遷移ON/OFF -->
-                   <label class="checkbox-label">
-                       <input type="checkbox" id="swipe-navigation-toggle">
-                       チャット画面から左右スワイプで画面移動
                    </label>
                    <p style="height:10px"></p>
                    <!-- ダークモード切り替え -->
@@ -1950,12 +1924,6 @@
                        <option value="updatedAt">更新日時 (新しい順)</option>
                        <option value="createdAt">作成日時 (新しい順)</option>
                    </select>
-                   <!-- フォント指定 -->
-                   <label for="font-family-input">アプリのフォント:</label>
-                   <input type="text" id="font-family-input" placeholder="例: 'Meiryo', sans-serif" aria-label="アプリ全体のフォント">
-                   <p style="font-size: 11px; color: var(--text-secondary); margin-top: -5px; margin-bottom: 10px;">
-                       ※ 端末またはPCにインストールされているフォント名を指定。
-                   </p>
                    <!-- 追加モデル入力欄 -->
                    <label for="additional-models">追加モデル (カンマ区切り):</label>
                    <textarea id="additional-models" placeholder="例: gemini-2.0-pro,gemini-2.0-flash-lite" aria-label="追加モデル"></textarea>
@@ -2207,15 +2175,9 @@
             enterToSendCheckbox: document.getElementById('enter-to-send'),
             historySortOrderSelect: document.getElementById('history-sort-order'),
             darkModeToggle: document.getElementById('dark-mode-toggle'),
-            fontFamilyInput: document.getElementById('font-family-input'), // フォント指定入力
             hideSystemPromptToggle: document.getElementById('hide-system-prompt-toggle'), // SP非表示トグル
             enableGroundingToggle: document.getElementById('enable-grounding-toggle'), // ネット検索トグル
             appVersionSpan: document.getElementById('app-version'),
-            // 背景画像設定要素
-            backgroundImageInput: document.getElementById('background-image-input'),
-            uploadBackgroundBtn: document.getElementById('upload-background-btn'),
-            backgroundThumbnail: document.getElementById('background-thumbnail'),
-            deleteBackgroundBtn: document.getElementById('delete-background-btn'),
             // ボタン
             gotoHistoryBtn: document.getElementById('goto-history-btn'),
             gotoSettingsBtn: document.getElementById('goto-settings-btn'),
@@ -2240,7 +2202,6 @@
             promptInput: document.getElementById('promptDialog').querySelector('.dialog-input'),
             promptOkBtn: document.getElementById('promptDialog').querySelector('.dialog-ok-btn'),
             promptCancelBtn: document.getElementById('promptDialog').querySelector('.dialog-cancel-btn'),
-            swipeNavigationToggle: document.getElementById('swipe-navigation-toggle'),
             attachFileBtn: document.getElementById('attach-file-btn'),
             fileUploadDialog: document.getElementById('fileUploadDialog'),
             fileInput: document.getElementById('file-input'),
@@ -2297,11 +2258,8 @@
                 enterToSend: true,
                 historySortOrder: 'updatedAt',
                 darkMode: false, // デフォルトはダークモードOFF
-                backgroundImageBlob: null, // デフォルト背景はnull
-                fontFamily: '', // デフォルトフォントは空 (CSS変数で定義)
                 hideSystemPromptInChat: false, // SP非表示設定 (デフォルトfalse)
                 enableGrounding: false, //ネット検索設定 (デフォルトfalse)
-                enableSwipeNavigation: true,
                 contextCaches: [], // { name: string, displayName: string, model: string }
                 activeCacheName: '', // 現在選択中のキャッシュのname (e.g., "cachedContents/...")
             },
@@ -2517,22 +2475,12 @@
                                 const loadedValue = loadedSettings[key];
                                 const defaultValue = defaultSettings[key];
 
-                                if (key === 'backgroundImageBlob') {
-                                    // 背景画像はBlobまたはnullのみ受け入れる
-                                    if (loadedValue instanceof Blob) {
-                                         state.settings[key] = loadedValue;
-                                    } else {
-                                         if (loadedValue !== null) console.warn(`読み込んだ 'backgroundImageBlob' がBlobではありません。nullに設定します。型: ${typeof loadedValue}`);
-                                                                                  state.settings[key] = null; // Blobでないか明示的にnullならnullを使用
-                                                                              }
-                                                                         } else if (key === 'contextCaches') {
+                               if (key === 'contextCaches') {
                                                                              // contextCachesは配列であることを保証
                                                                              state.settings[key] = Array.isArray(loadedValue) ? loadedValue : [];
                                                                          } else if (key === 'hideSystemPromptInChat') { // SP非表示設定
                                                                              state.settings[key] = loadedValue === true;
                                                                          } else if (key === 'enableGrounding') { // ネット検索設定                                    state.settings[key] = loadedValue === true;
-                                } else if (key === 'enableSwipeNavigation') { // スワイプナビゲーション設定
-                                    state.settings[key] = loadedValue === true;
                                 } else if (key === 'darkMode' || key === 'streamingOutput' || key === 'pseudoStreaming' || key === 'enterToSend' || key === 'concatDummyModel') {
                                      // その他の真偽値: 厳密にtrueかチェック
                                      state.settings[key] = loadedValue === true;
@@ -2591,7 +2539,7 @@
                         }
 
 
-                        console.log("設定読み込み完了:", { ...state.settings, backgroundImageBlob: state.settings.backgroundImageBlob ? '[Blob]' : null });
+                        console.log("設定読み込み完了:", { ...state.settings });
                         resolve(state.settings);
                     };
                     request.onerror = (event) => reject(`設定読み込みエラー: ${event.target.error}`);
@@ -3392,7 +3340,6 @@
                             // 各アクションボタンのイベントリスナー
                             li.querySelector('.js-edit-title-btn').onclick = (e) => { e.stopPropagation(); appLogic.editHistoryTitle(chat.id, titleEl); };
                             li.querySelector('.js-export-btn').onclick = (e) => { e.stopPropagation(); appLogic.exportChat(chat.id, titleText); };
-                            li.querySelector('.js-duplicate-btn').onclick = (e) => { e.stopPropagation(); appLogic.duplicateChat(chat.id); };
                             li.querySelector('.js-delete-btn').onclick = (e) => { e.stopPropagation(); appLogic.confirmDeleteChat(chat.id, titleText); };
 
                             elements.historyList.appendChild(li); // リストに追加
@@ -3410,32 +3357,6 @@
             },
 
             // --- 背景画像UIヘルパー ---
-            // 既存のオブジェクトURLを破棄
-            revokeExistingObjectUrl() {
-                if (state.backgroundImageUrl) {
-                    try {
-                        URL.revokeObjectURL(state.backgroundImageUrl);
-                        console.log("以前の背景URLを破棄:", state.backgroundImageUrl);
-                    } catch (e) {
-                        console.error("オブジェクトURLの破棄エラー:", e);
-                    }
-                    state.backgroundImageUrl = null;
-                }
-            },
-            // 背景画像設定UIを更新
-            updateBackgroundSettingsUI() {
-                if (!elements.backgroundThumbnail || !elements.deleteBackgroundBtn) return;
-                if (state.backgroundImageUrl) {
-                    elements.backgroundThumbnail.src = state.backgroundImageUrl;
-                    elements.backgroundThumbnail.classList.remove('hidden');
-                    elements.deleteBackgroundBtn.classList.remove('hidden');
-                } else {
-                    elements.backgroundThumbnail.src = '';
-                    elements.backgroundThumbnail.classList.add('hidden');
-                    elements.deleteBackgroundBtn.classList.add('hidden');
-                }
-            },
-
             // コンテキストキャッシュUIを更新
             updateCacheUI() {
                 const select = elements.contextCacheSelect;
@@ -3544,10 +3465,8 @@
                 elements.enterToSendCheckbox.checked = state.settings.enterToSend;
                 elements.historySortOrderSelect.value = state.settings.historySortOrder || 'updatedAt';
                 elements.darkModeToggle.checked = state.settings.darkMode; // ダークモードチェックボックスに状態を適用
-                elements.fontFamilyInput.value = state.settings.fontFamily || ''; // フォント設定を適用
                 elements.hideSystemPromptToggle.checked = state.settings.hideSystemPromptInChat; // SP非表示設定
                 elements.enableGroundingToggle.checked = state.settings.enableGrounding; // ネット検索設定を適用
-                elements.swipeNavigationToggle.checked = state.settings.enableSwipeNavigation;
 
                 // ユーザー指定モデルをコンボボックスに追加
                 this.updateUserModelOptions();
@@ -3557,7 +3476,6 @@
 
                 this.updateBackgroundSettingsUI(); // 背景画像UI要素を更新
                 this.applyDarkMode(); // 読み込み/更新された設定を反映してテーマを適用 (チェックボックス設定後)
-                this.applyFontFamily(); // フォント設定を適用
                 this.toggleSystemPromptVisibility(); // SP表示/非表示を適用
             },
 
@@ -3595,14 +3513,6 @@
                 document.body.classList.toggle('light-mode-forced', !isDark);
                 elements.themeColorMeta.content = isDark ? DARK_THEME_COLOR : LIGHT_THEME_COLOR;
                 console.log(`ダークモード ${isDark ? '有効' : '無効'}. テーマカラー: ${elements.themeColorMeta.content}`);
-            },
-
-            // フォント設定を適用
-            applyFontFamily() {
-                const customFont = state.settings.fontFamily?.trim();
-                const fontFamilyToApply = customFont ? customFont : DEFAULT_FONT_FAMILY;
-                document.documentElement.style.setProperty('--font-family', fontFamilyToApply);
-                console.log(`フォント適用: ${fontFamilyToApply}`);
             },
 
             // --- システムプロンプトUI更新 ---
@@ -4371,23 +4281,9 @@
 
                     // 読み込んだ設定に基づいて初期テーマとフォントを適用
                     uiUtils.applyDarkMode();
-                    uiUtils.applyFontFamily();
 
-                    // 読み込んだ設定に基づいて背景画像を適用
-                    if (state.settings.backgroundImageBlob instanceof Blob) {
-                        uiUtils.revokeExistingObjectUrl(); // 既存URLがあれば破棄
-                        try {
-                             state.backgroundImageUrl = URL.createObjectURL(state.settings.backgroundImageBlob);
-                             document.documentElement.style.setProperty('--chat-background-image', `url(${state.backgroundImageUrl})`);
-                             console.log("読み込んだBlobから背景画像を適用しました。");
-                        } catch (e) {
-                             console.error("背景画像のオブジェクトURL作成エラー:", e);
-                             document.documentElement.style.setProperty('--chat-background-image', 'none');
-                        }
-                    } else {
-                        // 背景画像がない場合はスタイルをリセット
-                        document.documentElement.style.setProperty('--chat-background-image', 'none');
-                    }
+                    // 背景画像は常にリセット
+                    document.documentElement.style.setProperty('--chat-background-image', 'none');
 
                     // 読み込んだ全設定をUIフィールドに適用
                     uiUtils.applySettingsToUI();
@@ -4490,15 +4386,6 @@
                     // 注意: 変更は「設定を保存」ボタンクリック時にDBに保存される
                 });
 
-                 // 背景画像ボタンリスナー
-                elements.uploadBackgroundBtn.addEventListener('click', () => elements.backgroundImageInput.click()); // ファイル選択ダイアログを開く
-                elements.backgroundImageInput.addEventListener('change', (event) => {
-                    const file = event.target.files[0];
-                    if (file) this.handleBackgroundImageUpload(file);
-                    event.target.value = null; // 同じファイルを選択できるようにリセット
-                });
-                elements.deleteBackgroundBtn.addEventListener('click', () => this.confirmDeleteBackgroundImage());
-
                 // SP非表示トグルリスナー
                 elements.hideSystemPromptToggle.addEventListener('change', () => {
                     state.settings.hideSystemPromptInChat = elements.hideSystemPromptToggle.checked;
@@ -4552,11 +4439,6 @@
                     // メッセージコンテナ内のクリックは上記のリスナーで処理される
                 }, true); 
 
-                // スワイプイベントリスナー (チャット画面のみ)
-                // passive: false にして preventDefault を呼べるようにする (必要に応じて)
-                elements.chatScreen.addEventListener('touchstart', this.handleTouchStart.bind(this), { passive: true }); // passive: trueのまま、moveで必要なら変更
-                elements.chatScreen.addEventListener('touchmove', this.handleTouchMove.bind(this), { passive: false }); // 横スワイプ判定時にpreventDefaultするため false
-                elements.chatScreen.addEventListener('touchend', this.handleTouchEnd.bind(this));
 
                 // VisualViewport APIリスナー (ズーム状態監視)
                 if ('visualViewport' in window) {
@@ -4645,103 +4527,7 @@
 
 
             // --- スワイプ処理 (ズーム対応) ---
-            handleTouchStart(event) {
-                if (!state.settings.enableSwipeNavigation) return;
-                
-                // マルチタッチ(ピンチ操作など)やズーム中はスワイプ開始点を記録しない
-                if (event.touches.length > 1 || state.isZoomed) {
-                    state.touchStartX = 0; // 開始点をリセットしてスワイプ判定を無効化
-                    state.touchStartY = 0;
-                    state.isSwiping = false;
-                    return;
-                }
-                state.touchStartX = event.touches[0].clientX;
-                state.touchStartY = event.touches[0].clientY;
-                state.isSwiping = false; // スワイプ開始時はフラグをリセット
-                state.touchEndX = state.touchStartX; // touchendで使えるように初期化
-                state.touchEndY = state.touchStartY;
-            },
-
-            handleTouchMove(event) {
-                if (!state.settings.enableSwipeNavigation) return;
-                
-                // 開始点がない、マルチタッチ、ズーム中は処理しない
-                if (!state.touchStartX || event.touches.length > 1 || state.isZoomed) {
-                    return;
-                }
-
-                const currentX = event.touches[0].clientX;
-                const currentY = event.touches[0].clientY;
-                const diffX = state.touchStartX - currentX;
-                const diffY = state.touchStartY - currentY;
-
-                // 横方向の移動が縦方向より大きい場合にスワイプと判定
-                // isSwipingフラグを立てるのは閾値を超えたときではなく、横移動が優位な場合
-                if (Math.abs(diffX) > Math.abs(diffY)) {
-                    state.isSwiping = true;
-                    // 横スワイプ(画面遷移の可能性)中はデフォルトの縦スクロールを抑制
-                    // これにより、意図しない縦スクロールと画面遷移の競合を防ぐ
-                    event.preventDefault();
-                } else {
-                    // 縦方向の移動が大きい場合はスワイプフラグを解除
-                    state.isSwiping = false;
-                }
-                // 現在位置を記録 (touchendで使うため)
-                state.touchEndX = currentX;
-                state.touchEndY = currentY;
-            },
-
-            handleTouchEnd(event) {
-                 if (!state.settings.enableSwipeNavigation) {
-                     this.resetSwipeState(); // 状態はリセットしておく
-                     return;
-                 }
-
-                 // ズーム状態を最終確認 (touchendまでに変わる可能性もあるため)
-                 this.updateZoomState();
-                 if (state.isZoomed) {
-                     console.log("Zoomed state detected on touchend, skipping swipe navigation.");
-                     this.resetSwipeState();
-                     return;
-                 }
-
-                 // スワイプ中でない、または開始点がない場合はリセットして終了
-                 if (!state.isSwiping || !state.touchStartX) {
-                     this.resetSwipeState();
-                     return;
-                 }
-
-                const diffX = state.touchStartX - state.touchEndX;
-                const diffY = state.touchStartY - state.touchEndY; // 縦移動量も一応計算
-
-                // スワイプ距離が閾値を超えているか、かつ横移動が縦移動より大きいか
-                if (Math.abs(diffX) > SWIPE_THRESHOLD && Math.abs(diffX) > Math.abs(diffY)) {
-                    if (diffX > 0) { // 左スワイプ (右から左へ) -> 設定画面へ
-                        console.log("左スワイプ検出 -> 設定画面へ");
-                        uiUtils.showScreen('settings'); // showScreenが履歴操作を行う
-                    } else { // 右スワイプ (左から右へ) -> 履歴画面へ
-                        console.log("右スワイプ検出 -> 履歴画面へ");
-                        uiUtils.showScreen('history'); // showScreenが履歴操作を行う
-                    }
-                } else {
-                    // 閾値未満または縦移動が大きい場合は何もしない
-                    console.log("スワイプ距離不足 or 縦移動大");
-                }
-
-                this.resetSwipeState(); // スワイプ状態をリセット
-            },
-
-            resetSwipeState() {
-                state.touchStartX = 0;
-                state.touchStartY = 0;
-                state.touchEndX = 0;
-                state.touchEndY = 0;
-                state.isSwiping = false;
-            },
-            // --- スワイプ処理ここまで ---
-
-
-            // 新規チャット開始の確認と実行
+                        // 新規チャット開始の確認と実行
             async confirmStartNewChat() {
                 // 送信中なら中断確認
                 if (state.isSending) {
@@ -4888,87 +4674,6 @@
                     await uiUtils.showCustomAlert(`チャットの読み込みエラー: ${error}`);
                     this.startNewChat(); // エラー時も新規チャットへ
                     uiUtils.showScreen('chat'); // チャット画面へ遷移させる
-                }
-            },
-
-            // チャットを複製
-            async duplicateChat(id) {
-                // 送信中・編集中・他チャット保存の確認 (loadChatと同様)
-                if (state.isSending) { const conf = await uiUtils.showCustomConfirm("送信中です。中断してチャットを複製しますか？"); if (!conf) return; this.abortRequest(); }
-                if (state.editingMessageIndex !== null) { const conf = await uiUtils.showCustomConfirm("編集中です。変更を破棄してチャットを複製しますか？"); if (!conf) return; const msgEl = elements.messageContainer.querySelector(`.message[data-index="${state.editingMessageIndex}"]`); this.cancelEditMessage(state.editingMessageIndex, msgEl); }
-                if (state.isEditingSystemPrompt) { const conf = await uiUtils.showCustomConfirm("システムプロンプト編集中です。変更を破棄してチャットを複製しますか？"); if (!conf) return; this.cancelEditSystemPrompt(); }
-                if ((state.currentMessages.length > 0 || state.currentSystemPrompt) && state.currentChatId && state.currentChatId !== id) { try { await dbUtils.saveChat(); } catch (error) { console.error("複製前の現チャット保存失敗:", error); const conf = await uiUtils.showCustomConfirm("現在のチャット保存に失敗しました。複製を続行しますか？"); if (!conf) return; } }
-                // 保留中の添付ファイルがあれば破棄確認
-                if (state.pendingAttachments.length > 0) {
-                    const confirmedAttach = await uiUtils.showCustomConfirm("添付準備中のファイルがあります。破棄してチャットを複製しますか？");
-                    if (!confirmedAttach) return;
-                    state.pendingAttachments = []; // 破棄
-                }
-
-                try {
-                    const chat = await dbUtils.getChat(id); // 複製元を取得
-                    if (chat) {
-                        // 新しいタイトルを作成 (末尾のコピーサフィックスを除去して再度付与)
-                        const originalTitle = chat.title || "無題のチャット";
-                        const newTitle = originalTitle.replace(new RegExp(DUPLICATE_SUFFIX.replace(/([().])/g, '\\$1') + '$'), '').trim() + DUPLICATE_SUFFIX;
-
-                        // メッセージをディープコピーし、新しい siblingGroupId を生成
-                        const duplicatedMessages = [];
-                        const groupIdMap = new Map(); // 古いGroupId -> 新しいGroupId
-                        (chat.messages || []).forEach(msg => {
-                            const newMsg = JSON.parse(JSON.stringify(msg)); // ディープコピー
-                            // attachments もコピー (Base64データも含まれる)
-                            newMsg.attachments = msg.attachments ? JSON.parse(JSON.stringify(msg.attachments)) : [];
-                            // 新しいフラグもコピー (isSelected は後で調整)
-                            newMsg.isCascaded = msg.isCascaded ?? false;
-                            newMsg.isSelected = msg.isSelected ?? false;
-                            if (msg.siblingGroupId) {
-                                if (!groupIdMap.has(msg.siblingGroupId)) {
-                                    groupIdMap.set(msg.siblingGroupId, `dup-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`);
-                                }
-                                newMsg.siblingGroupId = groupIdMap.get(msg.siblingGroupId);
-                            } else {
-                                delete newMsg.siblingGroupId; // 元々なければ削除
-                            }
-                            duplicatedMessages.push(newMsg);
-                        });
-
-                        // 複製後の isSelected を正規化 (各グループの最後のものを選択)
-                        const newGroupIds = new Set(duplicatedMessages.filter(m => m.siblingGroupId).map(m => m.siblingGroupId));
-                        newGroupIds.forEach(gid => {
-                            const siblings = duplicatedMessages.filter(m => m.siblingGroupId === gid);
-                            siblings.forEach((m, idx) => {
-                                m.isSelected = (idx === siblings.length - 1); // 最後のものだけ true
-                            });
-                        });
-
-                        // 新しいチャットデータを作成
-                        const newChatData = {
-                            messages: duplicatedMessages,
-                            systemPrompt: chat.systemPrompt || '', // システムプロンプトもコピー
-                            updatedAt: Date.now(), // 更新/作成日時は現在
-                            createdAt: Date.now(),
-                            title: newTitle
-                        };
-                        // 新しいチャットとしてDBに追加
-                        const newChatId = await new Promise((resolve, reject) => {
-                            const store = dbUtils._getStore(CHATS_STORE, 'readwrite');
-                            const request = store.add(newChatData); // addで新規追加
-                            request.onsuccess = (event) => resolve(event.target.result); // 新しいIDを返す
-                            request.onerror = (event) => reject(event.target.error);
-                        });
-                        console.log("チャット複製完了:", id, "->", newChatId);
-                        // 履歴画面が表示されていればリストを更新、そうでなければアラート表示
-                        if (state.currentScreen === 'history') { // stateで判定
-                            uiUtils.renderHistoryList();
-                        } else {
-                            await uiUtils.showCustomAlert(`チャット「${newTitle}」を複製しました。`);
-                        }
-                    } else {
-                        await uiUtils.showCustomAlert("複製元のチャットが見つかりません。");
-                    }
-                } catch (error) {
-                    await uiUtils.showCustomAlert(`チャット複製エラー: ${error}`);
                 }
             },
 
@@ -5656,67 +5361,6 @@
             },
             // -------------------------------
 
-            // --- 背景画像ハンドラ ---
-             // 背景画像アップロード処理
-             async handleBackgroundImageUpload(file) {
-                 console.log("選択されたファイル:", file.name, file.type, file.size);
-                 const maxSize = 5 * 1024 * 1024; // 5MB制限 (例)
-                 if (file.size > maxSize) {
-                     await uiUtils.showCustomAlert(`画像サイズが大きすぎます (${(maxSize / 1024 / 1024).toFixed(1)}MB以下にしてください)`);
-                     return;
-                 }
-                 if (!file.type.startsWith('image/')) {
-                     await uiUtils.showCustomAlert("画像ファイルを選択してください (JPEG, PNG, GIF, WebPなど)");
-                     return;
-                 }
-                 try {
-                     uiUtils.revokeExistingObjectUrl(); // 既存URLを破棄
-                     const blob = file; // ファイルはBlobとして扱える
-                     // DBにBlobとして保存
-                     await dbUtils.saveSetting('backgroundImageBlob', blob);
-                     state.settings.backgroundImageBlob = blob; // stateにも反映
-                     // 新しいオブジェクトURLを作成して適用
-                     state.backgroundImageUrl = URL.createObjectURL(blob);
-                     document.documentElement.style.setProperty('--chat-background-image', `url(${state.backgroundImageUrl})`);
-                     uiUtils.updateBackgroundSettingsUI(); // UI更新
-                     console.log("背景画像を更新しました。");
-                     // アラートは不要 (変更は即時反映、DB保存は「設定を保存」で行う)
-                 } catch (error) {
-                     console.error("背景画像アップロード処理エラー:", error);
-                     await uiUtils.showCustomAlert(`背景画像の処理中にエラーが発生しました: ${error}`);
-                     // エラー時はリセット
-                     uiUtils.revokeExistingObjectUrl();
-                     document.documentElement.style.setProperty('--chat-background-image', 'none');
-                     state.settings.backgroundImageBlob = null;
-                     uiUtils.updateBackgroundSettingsUI();
-                 }
-             },
-             // 背景画像削除の確認
-             async confirmDeleteBackgroundImage() {
-                 const confirmed = await uiUtils.showCustomConfirm("背景画像を削除しますか？");
-                 if (confirmed) {
-                     await this.handleBackgroundImageDelete();
-                 }
-             },
-             // 背景画像削除処理
-             async handleBackgroundImageDelete() {
-                 try {
-                     uiUtils.revokeExistingObjectUrl(); // URL破棄
-                     // DBの値をnullで上書き
-                     await dbUtils.saveSetting('backgroundImageBlob', null);
-                     state.settings.backgroundImageBlob = null; // stateもnullに
-                     // スタイルとUIをリセット
-                     document.documentElement.style.setProperty('--chat-background-image', 'none');
-                     uiUtils.updateBackgroundSettingsUI();
-                     console.log("背景画像を削除しました。");
-                     // アラート不要
-                 } catch (error) {
-                     console.error("背景画像削除エラー:", error);
-                     await uiUtils.showCustomAlert(`背景画像の削除中にエラーが発生しました: ${error}`);
-                 }
-             },
-             // -------------------------------
-
             // 設定を保存
             async saveSettings() {
                  // UIから値を取得 (背景Blobは別途処理済みなので除く)
@@ -5742,10 +5386,8 @@
                      enterToSend: elements.enterToSendCheckbox.checked,
                      historySortOrder: elements.historySortOrderSelect.value,
                      darkMode: elements.darkModeToggle.checked,
-                     fontFamily: elements.fontFamilyInput.value.trim(), // フォント設定を取得
                      hideSystemPromptInChat: elements.hideSystemPromptToggle.checked, // SP非表示設定
                      enableGrounding: elements.enableGroundingToggle.checked, // ネット検索設定を取得
-                     enableSwipeNavigation: elements.swipeNavigationToggle.checked,//スワイプナビゲーション設定を取得
                      activeCacheName: elements.contextCacheSelect.value,
                  };
 
@@ -5795,7 +5437,7 @@
                      uiUtils.applySettingsToUI();
                      // applyDarkMode, applyFontFamily, toggleSystemPromptVisibility は applySettingsToUI内で呼ばれる
 
-                     console.log("設定保存成功:", { ...state.settings, backgroundImageBlob: state.settings.backgroundImageBlob ? '[Blob]' : null });
+                     console.log("設定保存成功:", { ...state.settings });
                      await uiUtils.showCustomAlert("設定を保存しました。");
 
                      // ソート順が変更され、履歴画面が表示中ならリストを再描画
@@ -5866,10 +5508,7 @@
                             historySortOrder: 'updatedAt',
                             // ダークモードはOS設定にフォールバック
                             darkMode: window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false,
-                            backgroundImageBlob: null,
-                            fontFamily: '', // フォントもリセット
                             hideSystemPromptInChat: false, // SP非表示もリセット
-                            enableSwipeNavigation: true, // スワイプナビゲーションのデフォルト値
                         };
                         state.backgroundImageUrl = null;
 
