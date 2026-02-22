@@ -2086,13 +2086,11 @@
         
         <label class="dialog-message" for="update-cache-ttl-input" style="margin-bottom:5px;">新しい有効期間（分）:</label>
         <input type="number" id="update-cache-ttl-input" class="dialog-input" placeholder="デフォルト: 60 (1時間), 0で最大値 (6日間)">
-        <p style="font-size: 11px; color: var(--text-secondary); margin-top: -5px; margin-bottom: 10px;">
-            ※ 現在の時刻から、指定した期間だけキャッシュが延長されます。
-        </p>
-
+        
+        <!-- 【修正】onclickを直接付与し、強制発火させる -->
         <div class="dialog-actions">
-            <button value="cancel" class="dialog-cancel-btn">キャンセル</button>
-            <button value="ok" class="dialog-ok-btn">更新</button>
+            <button value="cancel" class="dialog-cancel-btn" onclick="document.getElementById('update-cache-dialog').close()">キャンセル</button>
+            <button value="ok" class="dialog-ok-btn" onclick="appLogic.handleUpdateCache()">更新</button>
         </div>
     </dialog>
 
@@ -3449,14 +3447,13 @@
             },
 
             // キャッシュの残り時間を表示
-            updateCacheExpireTimeDisplay() {
-                const select = elements.contextCacheSelect;
+            updateCacheExpireTimeDisplay(targetCacheName) {
                 const display = elements.cacheExpireTimeDisplay;
-                if (!select || !display) return;
+                if (!display) return;
 
-                const cacheName = select.value;
+                const cacheName = targetCacheName || (elements.contextCacheSelect ? elements.contextCacheSelect.value : state.settings.activeCacheName);
                 if (!cacheName) {
-                    display.innerHTML = '&nbsp;'; // Clear display
+                    display.innerHTML = '&nbsp;';
                     return;
                 }
 
@@ -3466,37 +3463,24 @@
                     return;
                 }
 
-                const expireDate = new Date(cache.expireTime);
-                const now = new Date();
-                const diffMillis = expireDate - now;
+                const diffMinutes = Math.round((new Date(cache.expireTime) - new Date()) / 60000);
 
-                if (diffMillis <= 0) {
-                    display.textContent = '有効期限切れ';
-                    return;
-                }
-
-                const diffMinutes = Math.round(diffMillis / 1000 / 60);
-
-                if (diffMinutes < 1) {
-                    display.textContent = '残り1分未満';
-                } else if (diffMinutes < 60) {
-                    display.textContent = `残り約 ${diffMinutes}分`;
-                } else {
-                    const diffHours = Math.floor(diffMinutes / 60);
-                    const remainingMinutes = diffMinutes % 60;
-                    display.textContent = `残り約 ${diffHours}時間 ${remainingMinutes}分`;
-                }
-                 // 【追加】設定画面の更新と同時にチャット画面のバナーも更新する
-                this.updateChatCacheBanner();
+                if (diffMinutes <= 0) display.textContent = '有効期限切れ';
+                else if (diffMinutes < 1) display.textContent = '残り1分未満';
+                else if (diffMinutes < 60) display.textContent = `残り約 ${diffMinutes}分`;
+                else display.textContent = `残り約 ${Math.floor(diffMinutes / 60)}時間 ${diffMinutes % 60}分`;
+                
+                // バナーも同時に強制更新
+                this.updateChatCacheBanner(cacheName);
             },
 
-            // 【追加】チャット画面のキャッシュバナーを更新
-            updateChatCacheBanner() {
+            // 【修正】引数を追加し、確実に対象を描画
+            updateChatCacheBanner(targetCacheName) {
                 const banner = elements.chatCacheBanner;
                 const info = elements.chatCacheInfo;
                 if (!banner || !info) return;
 
-                const cacheName = state.settings.activeCacheName;
+                const cacheName = targetCacheName || state.settings.activeCacheName;
                 if (!cacheName) {
                     banner.classList.add('hidden');
                     return;
@@ -3508,11 +3492,10 @@
                     return;
                 }
 
-                // 残り時間の計算（軽量化のためインライン処理）
-                let timeStr = '有効期限情報なし';
+                let timeStr = '情報なし';
                 if (cache.expireTime) {
                     const diffMinutes = Math.round((new Date(cache.expireTime) - new Date()) / 60000);
-                    if (diffMinutes <= 0) timeStr = '有効期限切れ';
+                    if (diffMinutes <= 0) timeStr = '期限切れ';
                     else if (diffMinutes < 60) timeStr = `残り約 ${diffMinutes}分`;
                     else timeStr = `残り約 ${Math.floor(diffMinutes / 60)}時間 ${diffMinutes % 60}分`;
                 }
@@ -4615,19 +4598,17 @@
                 });
 
                 // コンテキストキャッシュ関連のイベントリスナー
-                elements.chatCacheUpdateBtn.addEventListener('click', () => this.showUpdateCacheDialog(state.settings.activeCacheName)); // 追加
-                elements.chatCacheDeleteBtn.addEventListener('click', () => this.confirmDeleteCache(state.settings.activeCacheName));    // 追加
+                 elements.chatCacheUpdateBtn.addEventListener('click', () => appLogic.showUpdateCacheDialog(state.settings.activeCacheName));
+                elements.chatCacheDeleteBtn.addEventListener('click', () => appLogic.confirmDeleteCache(state.settings.activeCacheName));
                 
-                elements.newCacheBtn.addEventListener('click', () => this.showCreateCacheDialog());
-                elements.updateCacheBtn.addEventListener('click', () => this.showUpdateCacheDialog()); // 引数なしは設定画面用
-                elements.deleteCacheBtn.addEventListener('click', () => this.confirmDeleteCache());    // 引数なしは設定画面用
+                elements.newCacheBtn.addEventListener('click', () => appLogic.showCreateCacheDialog());
+                elements.updateCacheBtn.addEventListener('click', () => appLogic.showUpdateCacheDialog());
+                elements.deleteCacheBtn.addEventListener('click', () => appLogic.confirmDeleteCache()); // 引数なしは設定画面用
                 elements.createCacheDialog.querySelector('.dialog-ok-btn').addEventListener('click', () => this.handleCreateCache());
                 elements.createCacheDialog.querySelector('.dialog-cancel-btn').addEventListener('click', () => {
                     elements.createCacheDialog.close();
                 });
-                 elements.updateCacheDialog.querySelector('.dialog-cancel-btn').addEventListener('click', () => {
-                    elements.updateCacheDialog.close();
-                });
+                 
                 elements.selectCacheFilesBtn.addEventListener('click', () => {
                     elements.cacheFileInput.click();
                 });
@@ -6473,8 +6454,9 @@
                 elements.cacheNameInput.focus();
             },
 
-            showUpdateCacheDialog(targetCacheName = elements.contextCacheSelect.value) {
-                const cacheName = targetCacheName;
+            showUpdateCacheDialog(targetCacheName) {
+                // 引数 -> 選択中の値 -> アクティブな値 の順に探す
+                const cacheName = targetCacheName || elements.contextCacheSelect.value || state.settings.activeCacheName;
                 if (!cacheName) {
                     uiUtils.showCustomAlert("更新するキャッシュを選択してください。");
                     return;
@@ -6485,60 +6467,64 @@
                     return;
                 }
                 elements.updateCacheDisplayName.textContent = cache.displayName;
-                // チャット画面から呼ばれた場合、対象を明示的に保持するためDataset等に仕込む（最軽量手法）
+                // チャット画面から呼ばれた場合、対象を明示的に保持
                 elements.updateCacheDialog.dataset.targetCache = cacheName;
-                elements.updateCacheTtlInput.value = ''; // 毎回入力を促すためクリア
+                elements.updateCacheTtlInput.value = ''; 
                 elements.updateCacheDialog.showModal();
                 elements.updateCacheTtlInput.focus();
             },
 
             async handleUpdateCache() {
-                // 【修正】ダイアログに仕込んだ対象キャッシュ名を取得
-                const cacheName = elements.updateCacheDialog.dataset.targetCache || elements.contextCacheSelect.value;
+                // 【追加】発火確認用ログ
+                console.log("handleUpdateCache fired"); 
+                
+                const cacheName = elements.updateCacheDialog.dataset.targetCache || state.settings.activeCacheName;
                 const ttlInput = elements.updateCacheTtlInput.value.trim();
-                let ttlMinutes = null;
-
-                if (ttlInput === '') {
-                    await uiUtils.showCustomAlert("新しい有効期間を入力してください。");
-                    return;
-                }
-
-                ttlMinutes = parseInt(ttlInput, 10);
-                if (isNaN(ttlMinutes) || ttlMinutes < 0) {
-                    await uiUtils.showCustomAlert("有効期間は0以上の数値を入力してください。");
-                    return;
-                }
-
-                if (!cacheName) {
-                    await uiUtils.showCustomAlert("対象のキャッシュが見つかりません。");
-                    return;
-                }
+                let ttlMinutes = parseInt(ttlInput, 10);
+                
+                if (isNaN(ttlMinutes) || ttlMinutes < 0) return uiUtils.showCustomAlert("0以上の数値を入力してください。");
+                if (!cacheName) return uiUtils.showCustomAlert("対象のキャッシュが見つかりません。");
 
                 elements.updateCacheDialog.close();
 
                 try {
+                    // APIコール
                     const updatedCache = await apiUtils.updateCache(cacheName, ttlMinutes);
-                    console.log("Cache updated successfully:", updatedCache);
+                    console.log("API更新レスポンス:", updatedCache);
 
-                    // state内のキャッシュの有効期限を更新
                     const cacheInState = state.settings.contextCaches.find(c => c.name === cacheName);
                     if (cacheInState) {
-                        cacheInState.expireTime = updatedCache.expireTime;
-                        // contextCaches全体を保存
+                        const targetDate = updatedCache?.expireTime 
+                                         ? new Date(updatedCache.expireTime) 
+                                         : new Date(Date.now() + (ttlMinutes === 0 ? 518400000 : ttlMinutes * 60000));
+                        
+                        cacheInState.expireTime = targetDate.toISOString();
                         await dbUtils.saveSetting('contextCaches', state.settings.contextCaches);
+
+                        const diffMins = Math.round((targetDate - new Date()) / 60000);
+                        const timeStr = diffMins <= 0 ? '期限切れ' : 
+                                        diffMins < 60 ? `残り約 ${diffMins}分` : 
+                                        `残り約 ${Math.floor(diffMins / 60)}時間 ${diffMins % 60}分`;
+
+                        // DOMを直接上書き
+                        if (elements.cacheExpireTimeDisplay) {
+                            elements.cacheExpireTimeDisplay.textContent = timeStr;
+                        }
+                        if (elements.chatCacheInfo && elements.chatCacheBanner) {
+                            elements.chatCacheInfo.textContent = `${cacheInState.displayName} (${timeStr})`;
+                            elements.chatCacheBanner.classList.remove('hidden');
+                        }
                     }
 
-                    await uiUtils.showCustomAlert(`キャッシュの有効期間を更新しました。`);
-                    // UI表示を更新 (updateChatCacheBannerも呼ばれる)
-                    uiUtils.updateCacheExpireTimeDisplay();
-
+                    await uiUtils.showCustomAlert(`有効期間を更新しました。`);
                 } catch (error) {
+                    console.error("更新処理エラー:", error);
                     await uiUtils.showCustomAlert(error.message);
                 }
             },
 
-            async confirmDeleteCache(targetCacheName = elements.contextCacheSelect.value) {
-                const cacheName = targetCacheName;
+            async confirmDeleteCache(targetCacheName) {
+                const cacheName = targetCacheName || elements.contextCacheSelect.value || state.settings.activeCacheName;
                 if (!cacheName) {
                     await uiUtils.showCustomAlert("削除するキャッシュが選択されていません。");
                     return;
