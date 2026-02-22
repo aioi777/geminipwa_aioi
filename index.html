@@ -2047,6 +2047,23 @@
         <label class="dialog-message" for="cache-content-input" style="margin-bottom:5px;">キャッシュするコンテンツ:</label>
         <textarea id="cache-content-input" class="dialog-input" style="min-height: 150px; max-height: 300px; resize: vertical;" placeholder="ここに大量のコードなどを貼り付けます..."></textarea>
         
+        <!-- 【追加】システムプロンプトと検索ツール設定 -->
+        <label class="dialog-message" for="cache-system-prompt-input" style="margin-bottom:5px;">システムプロンプト (任意):</label>
+        <textarea id="cache-system-prompt-input" class="dialog-input" style="min-height: 60px; max-height: 150px; resize: vertical;" placeholder="キャッシュに含めるシステムプロンプト..."></textarea>
+        
+        <label class="checkbox-label" style="margin-bottom: 5px; font-size: 13px;">
+            <input type="checkbox" id="cache-enable-grounding-toggle">
+            ネットから情報を取得させる (Google Search)
+        </label>
+        
+        <!-- 【追加】ツール定義（コード実行＆カスタムJSON） -->
+        <label class="checkbox-label" style="margin-bottom: 15px; font-size: 13px;">
+            <input type="checkbox" id="cache-enable-code-execution-toggle">
+            コード実行を有効にする (Code Execution)
+        </label>
+        <label class="dialog-message" for="cache-custom-tools-input" style="margin-bottom:5px;">カスタムツール定義 (JSON配列・任意):</label>
+        <textarea id="cache-custom-tools-input" class="dialog-input" style="min-height: 40px; max-height: 100px; resize: vertical;" placeholder='例: [{"functionDeclarations": [...]}]'></textarea>
+        
         <label class="dialog-message" for="cache-name-input" style="margin-bottom:5px;">キャッシュ名:</label>
         <input type="text" id="cache-name-input" class="dialog-input" placeholder="例: my-react-codebase">
 
@@ -2249,6 +2266,10 @@
             cacheContentInput: document.getElementById('cache-content-input'),
             cacheNameInput: document.getElementById('cache-name-input'),
             cacheTtlInput: document.getElementById('cache-ttl-input'),
+            cacheSystemPromptInput: document.getElementById('cache-system-prompt-input'),
+            cacheEnableGroundingToggle: document.getElementById('cache-enable-grounding-toggle'),
+            cacheEnableCodeExecutionToggle: document.getElementById('cache-enable-code-execution-toggle'), // 追加
+            cacheCustomToolsInput: document.getElementById('cache-custom-tools-input'), // 追加
             cacheFileInput: document.getElementById('cache-file-input'),
             selectCacheFilesBtn: document.getElementById('select-cache-files-btn'),
             cacheFolderInput: document.getElementById('cache-folder-input'),
@@ -3989,11 +4010,14 @@
 
                 // --- コンテキストキャッシュを追加 ---
                 const activeCacheName = state.settings.activeCacheName;
+                let isUsingCache = false; // 【追加】キャッシュ使用フラグ
+
                 if (activeCacheName) {
                     const cache = state.settings.contextCaches.find(c => c.name === activeCacheName);
                     const currentModel = state.settings.modelName;
                     if (cache && cache.model === currentModel) {
                         requestBody.cachedContent = cache.name;
+                        isUsingCache = true; // 【追加】フラグを立てる
                         console.log(`コンテキストキャッシュ「${cache.displayName}」(${cache.name}) を使用します。`);
                     } else if (cache) {
                         console.warn(`アクティブなキャッシュ「${cache.displayName}」は現在のモデル「${currentModel}」と互換性がありません。キャッシュは使用されません。`);
@@ -4002,6 +4026,13 @@
                     }
                 }
                 // ---------------------------------
+
+                // 【追加】API仕様エラー回避：キャッシュ使用時はシステムプロンプトとツールを強制除外
+                if (isUsingCache) {
+                    delete requestBody.systemInstruction;
+                    delete requestBody.tools;
+                    console.log("※API制限のため、システムプロンプトと検索ツールをリクエストから除外しました。");
+                }
 
                 console.log("Geminiへの送信データ:", JSON.stringify(requestBody, (key, value) => {
                     // Base64データはログで見やすく省略
@@ -4218,11 +4249,10 @@
             },
 
              // --- Context Cache API ---
-            async createCache(displayName, content, model, ttlMinutes) {
+            async createCache(displayName, content, model, ttlMinutes, systemInstructionText, enableGrounding, enableCodeExecution, customTools) {
                 if (!state.settings.apiKey) throw new Error("APIキーが設定されていません。");
                 const endpoint = `https://generativelanguage.googleapis.com/v1beta/cachedContents?key=${state.settings.apiKey}`;
                 
-                // 【修正】contentsを配列に変更し、role: "user" を追加
                 const requestBody = {
                     displayName: displayName,
                     model: `models/${model}`,
@@ -4233,6 +4263,23 @@
                         }
                     ],
                 };
+
+                // 【追加】システムプロンプトがあれば追加
+                if (systemInstructionText) {
+                    requestBody.systemInstruction = {
+                        role: "system",
+                        parts: [{ text: systemInstructionText }]
+                    };
+                }
+
+                let tools = [];
+                if (enableGrounding) tools.push({ "google_search": {} });
+                if (enableCodeExecution) tools.push({ "codeExecution": {} });
+                if (customTools && customTools.length > 0) tools = tools.concat(customTools);
+
+                if (tools.length > 0) {
+                    requestBody.tools = tools;
+                }
 
                 // TTLフォーマットをAPI仕様に適合
                 if (ttlMinutes !== null && ttlMinutes >= 0) {
@@ -6410,6 +6457,15 @@
                 }
                 elements.cacheNameInput.value = '';
                 elements.cacheContentInput.value = '';
+                
+                // 【追加】現在の設定を初期値としてセット
+                elements.cacheSystemPromptInput.value = state.currentSystemPrompt || state.settings.systemPrompt;
+                elements.cacheEnableGroundingToggle.checked = state.settings.enableGrounding;
+                
+                // 【追加】ツール定義の初期化
+                elements.cacheEnableCodeExecutionToggle.checked = false; 
+                elements.cacheCustomToolsInput.value = ''; 
+                
                 elements.cacheSelectedFilesList.innerHTML = '';
                 elements.cacheTtlInput.value = '';
                 elements.createCacheDialog.querySelector('h3').textContent = `キャッシュ新規作成 (${currentModel})`;
@@ -6526,6 +6582,23 @@
                 const content = elements.cacheContentInput.value.trim();
                 const model = state.settings.modelName;
                 const ttlInput = elements.cacheTtlInput.value.trim();
+                // 【追加】UIから値を取得
+                const systemPrompt = elements.cacheSystemPromptInput.value.trim();
+                const enableGrounding = elements.cacheEnableGroundingToggle.checked;
+                
+                // 【追加】ツール定義の取得と軽量JSONバリデーション
+                const enableCodeExecution = elements.cacheEnableCodeExecutionToggle.checked;
+                const customToolsJson = elements.cacheCustomToolsInput.value.trim();
+                let customTools = [];
+                if (customToolsJson) {
+                    try {
+                        customTools = JSON.parse(customToolsJson);
+                        if (!Array.isArray(customTools)) throw new Error("JSONは配列である必要があります。");
+                    } catch (e) {
+                        return await uiUtils.showCustomAlert("カスタムツール定義のJSONが不正です: " + e.message);
+                    }
+                }
+                
                 let ttlMinutes = null;
 
                 if (ttlInput !== '') {
@@ -6548,7 +6621,8 @@
                 elements.createCacheDialog.close();
 
                 try {
-                    const newCache = await apiUtils.createCache(displayName, content, model, ttlMinutes);
+                    // 【修正】APIに引数を追加して渡す
+                    const newCache = await apiUtils.createCache(displayName, content, model, ttlMinutes, systemPrompt, enableGrounding, enableCodeExecution, customTools);
                     console.log("Cache created successfully:", newCache);
 
                     // stateを更新
