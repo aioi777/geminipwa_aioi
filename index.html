@@ -1669,7 +1669,19 @@
                 <button id="new-chat-btn" class="new-chat-button" title="新規チャットを開始">新規</button>
                 <button id="goto-settings-btn" class="header-button" aria-label="設定へ">⚙</button>
             </header>
-            <main class="main-content">
+           <main class="main-content">
+                <!-- 【追加】チャット画面用キャッシュステータスバナー -->
+                <div id="chat-cache-banner" class="hidden" style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; margin-bottom: 15px; border-radius: 8px; background-color: var(--bg-tertiary); border: 1px solid var(--border-secondary); font-size: 12px;">
+                    <div style="flex-grow: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 10px;">
+                        <span style="font-weight: bold; color: var(--text-link);">🗂️ Cache: </span>
+                        <span id="chat-cache-info"></span>
+                    </div>
+                    <div style="flex-shrink: 0; display: flex; gap: 5px;">
+                        <button id="chat-cache-update-btn" style="padding: 4px 8px; font-size: 11px; background-color: var(--bg-button-edit);">延長</button>
+                        <button id="chat-cache-delete-btn" style="padding: 4px 8px; font-size: 11px; background-color: var(--bg-button-delete);">削除</button>
+                    </div>
+                </div>
+
                 <!-- システムプロンプト表示/編集エリア -->
                 <div id="system-prompt-area" class="system-prompt-area">
                     <details id="system-prompt-details">
@@ -2226,6 +2238,10 @@
             fileFilterInput: document.getElementById('file-filter-input'),
 
             // コンテキストキャッシュUI
+            chatCacheBanner: document.getElementById('chat-cache-banner'), // 追加
+            chatCacheInfo: document.getElementById('chat-cache-info'),     // 追加
+            chatCacheUpdateBtn: document.getElementById('chat-cache-update-btn'), // 追加
+            chatCacheDeleteBtn: document.getElementById('chat-cache-delete-btn'), // 追加
             contextCacheSelect: document.getElementById('context-cache-select'),
             newCacheBtn: document.getElementById('new-cache-btn'),
             deleteCacheBtn: document.getElementById('delete-cache-btn'),
@@ -3449,6 +3465,39 @@
                     const remainingMinutes = diffMinutes % 60;
                     display.textContent = `残り約 ${diffHours}時間 ${remainingMinutes}分`;
                 }
+                 // 【追加】設定画面の更新と同時にチャット画面のバナーも更新する
+                this.updateChatCacheBanner();
+            },
+
+            // 【追加】チャット画面のキャッシュバナーを更新
+            updateChatCacheBanner() {
+                const banner = elements.chatCacheBanner;
+                const info = elements.chatCacheInfo;
+                if (!banner || !info) return;
+
+                const cacheName = state.settings.activeCacheName;
+                if (!cacheName) {
+                    banner.classList.add('hidden');
+                    return;
+                }
+
+                const cache = state.settings.contextCaches.find(c => c.name === cacheName);
+                if (!cache) {
+                    banner.classList.add('hidden');
+                    return;
+                }
+
+                // 残り時間の計算（軽量化のためインライン処理）
+                let timeStr = '有効期限情報なし';
+                if (cache.expireTime) {
+                    const diffMinutes = Math.round((new Date(cache.expireTime) - new Date()) / 60000);
+                    if (diffMinutes <= 0) timeStr = '有効期限切れ';
+                    else if (diffMinutes < 60) timeStr = `残り約 ${diffMinutes}分`;
+                    else timeStr = `残り約 ${Math.floor(diffMinutes / 60)}時間 ${diffMinutes % 60}分`;
+                }
+
+                info.textContent = `${cache.displayName} (${timeStr})`;
+                banner.classList.remove('hidden');
             },
 
             // ------------------------------------
@@ -4340,8 +4389,15 @@
                     this.updateZoomState();
                     // UI調整
                     uiUtils.adjustTextareaHeight();
-                    uiUtils.setSendingState(false); // 送信状態をリセット
+                    uiUtils.setSendingState(false);
                     uiUtils.scrollToBottom();
+
+                    // 【追加】キャッシュの残り時間表示を1分ごとに更新（アクティブな時のみDOM操作）
+                    setInterval(() => {
+                        if (state.settings.activeCacheName) {
+                            uiUtils.updateChatCacheBanner();
+                        }
+                    }, 60000);
                 }
             },
 
@@ -4512,9 +4568,12 @@
                 });
 
                 // コンテキストキャッシュ関連のイベントリスナー
+                elements.chatCacheUpdateBtn.addEventListener('click', () => this.showUpdateCacheDialog(state.settings.activeCacheName)); // 追加
+                elements.chatCacheDeleteBtn.addEventListener('click', () => this.confirmDeleteCache(state.settings.activeCacheName));    // 追加
+                
                 elements.newCacheBtn.addEventListener('click', () => this.showCreateCacheDialog());
-                elements.updateCacheBtn.addEventListener('click', () => this.showUpdateCacheDialog());
-                elements.deleteCacheBtn.addEventListener('click', () => this.confirmDeleteCache());
+                elements.updateCacheBtn.addEventListener('click', () => this.showUpdateCacheDialog()); // 引数なしは設定画面用
+                elements.deleteCacheBtn.addEventListener('click', () => this.confirmDeleteCache());    // 引数なしは設定画面用
                 elements.createCacheDialog.querySelector('.dialog-ok-btn').addEventListener('click', () => this.handleCreateCache());
                 elements.createCacheDialog.querySelector('.dialog-cancel-btn').addEventListener('click', () => {
                     elements.createCacheDialog.close();
@@ -6358,8 +6417,8 @@
                 elements.cacheNameInput.focus();
             },
 
-            showUpdateCacheDialog() {
-                const cacheName = elements.contextCacheSelect.value;
+            showUpdateCacheDialog(targetCacheName = elements.contextCacheSelect.value) {
+                const cacheName = targetCacheName;
                 if (!cacheName) {
                     uiUtils.showCustomAlert("更新するキャッシュを選択してください。");
                     return;
@@ -6370,13 +6429,16 @@
                     return;
                 }
                 elements.updateCacheDisplayName.textContent = cache.displayName;
+                // チャット画面から呼ばれた場合、対象を明示的に保持するためDataset等に仕込む（最軽量手法）
+                elements.updateCacheDialog.dataset.targetCache = cacheName;
                 elements.updateCacheTtlInput.value = ''; // 毎回入力を促すためクリア
                 elements.updateCacheDialog.showModal();
                 elements.updateCacheTtlInput.focus();
             },
 
             async handleUpdateCache() {
-                const cacheName = elements.contextCacheSelect.value;
+                // 【修正】ダイアログに仕込んだ対象キャッシュ名を取得
+                const cacheName = elements.updateCacheDialog.dataset.targetCache || elements.contextCacheSelect.value;
                 const ttlInput = elements.updateCacheTtlInput.value.trim();
                 let ttlMinutes = null;
 
@@ -6411,7 +6473,7 @@
                     }
 
                     await uiUtils.showCustomAlert(`キャッシュの有効期間を更新しました。`);
-                    // UI表示を更新
+                    // UI表示を更新 (updateChatCacheBannerも呼ばれる)
                     uiUtils.updateCacheExpireTimeDisplay();
 
                 } catch (error) {
@@ -6419,8 +6481,8 @@
                 }
             },
 
-            async confirmDeleteCache() {
-                const cacheName = elements.contextCacheSelect.value;
+            async confirmDeleteCache(targetCacheName = elements.contextCacheSelect.value) {
+                const cacheName = targetCacheName;
                 if (!cacheName) {
                     await uiUtils.showCustomAlert("削除するキャッシュが選択されていません。");
                     return;
