@@ -1796,6 +1796,11 @@
 
                 <div class="settings-group">
                     <h3>パラメータ</h3>
+                    <!-- 【追加】システムプロンプト有効化トグル -->
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="enable-system-prompt" checked>
+                        システムプロンプトを有効にする
+                    </label>
                     <label for="system-prompt-default">システムプロンプト (デフォルト):</label>
                     <textarea id="system-prompt-default" placeholder="例: あなたは親切なアシスタントです。新規チャット作成時に適用されます。" aria-label="システムプロンプト (デフォルト)"></textarea>
 
@@ -1857,9 +1862,19 @@
 
                 <div class="settings-group">
                    <h3>アドバンスド</h3>
+                   <!-- 【追加】ダミーUserプロンプト有効化トグル -->
+                   <label class="checkbox-label">
+                       <input type="checkbox" id="enable-dummy-user" checked>
+                       ダミー User プロンプトを有効にする
+                   </label>
                    <label for="dummy-user">ダミー User プロンプト (送信時のみ追加):</label>
                    <textarea id="dummy-user" placeholder="API送信直前に user ロールとして履歴末尾に追加されます" aria-label="ダミー User プロンプト"></textarea>
 
+                   <!-- 【追加】ダミーModelプロンプト有効化トグル -->
+                   <label class="checkbox-label" style="margin-top: 15px;">
+                       <input type="checkbox" id="enable-dummy-model" checked>
+                       ダミー Model プロンプトを有効にする
+                   </label>
                    <label for="dummy-model">ダミー Model プロンプト (送信時のみ追加):</label>
                    <textarea id="dummy-model" placeholder="API送信直前に model ロールとして履歴最末尾に追加されます" aria-label="ダミー Model プロンプト"></textarea>
 
@@ -2197,6 +2212,7 @@
             userDefinedModelsGroup: document.getElementById('user-defined-models-group'), // ユーザー指定モデルのoptgroup
             streamingOutputCheckbox: document.getElementById('streaming-output'),
             streamingSpeedInput: document.getElementById('streaming-speed'),
+            enableSystemPromptCheckbox: document.getElementById('enable-system-prompt'), // 【追加】
             systemPromptDefaultTextarea: document.getElementById('system-prompt-default'), // デフォルト用
             temperatureInput: document.getElementById('temperature'),
             maxTokensInput: document.getElementById('max-tokens'),
@@ -2206,7 +2222,9 @@
             frequencyPenaltyInput: document.getElementById('frequency-penalty'),
             thinkingBudgetInput: document.getElementById('thinking-budget'),
             includeThoughtsToggle: document.getElementById('include-thoughts-toggle'), // Include Thoughts トグル
+            enableDummyUserCheckbox: document.getElementById('enable-dummy-user'), // 【追加】
             dummyUserInput: document.getElementById('dummy-user'),
+            enableDummyModelCheckbox: document.getElementById('enable-dummy-model'), // 【追加】
             dummyModelInput: document.getElementById('dummy-model'),
             concatDummyModelCheckbox: document.getElementById('concat-dummy-model'), // ダミーモデル連結チェックボックス
             additionalModelsTextarea: document.getElementById('additional-models'), // 追加モデル入力
@@ -2292,6 +2310,7 @@
                 modelName: DEFAULT_MODEL,
                 streamingOutput: true,
                 streamingSpeed: DEFAULT_STREAMING_SPEED,
+                enableSystemPrompt: true, // 【追加】
                 systemPrompt: '', // デフォルトのシステムプロンプト
                 temperature: null,
                 maxTokens: null,
@@ -2301,7 +2320,9 @@
                 frequencyPenalty: null,
                 thinkingBudget: null,
                 includeThoughts: true, // Include Thoughts のデフォルト値
+                enableDummyUser: true, // 【追加】
                 dummyUser: '',
+                enableDummyModel: true, // 【追加】
                 dummyModel: '',
                 concatDummyModel: false, // ダミーモデル連結設定
                 additionalModels: '', // 追加モデル用設定
@@ -2527,7 +2548,7 @@
                                                                          } else if (key === 'hideSystemPromptInChat') { // SP非表示設定
                                                                              state.settings[key] = loadedValue === true;
                                                                          } else if (key === 'enableGrounding') { // ネット検索設定                                    state.settings[key] = loadedValue === true;
-                                } else if (key === 'darkMode' || key === 'streamingOutput' || key === 'pseudoStreaming' || key === 'enterToSend' || key === 'concatDummyModel') {
+                                } else if (key === 'darkMode' || key === 'streamingOutput' || key === 'pseudoStreaming' || key === 'enterToSend' || key === 'concatDummyModel' || key === 'enableSystemPrompt' || key === 'enableDummyUser' || key === 'enableDummyModel') { // 【追加】末尾の3つのキーを追加
                                      // その他の真偽値: 厳密にtrueかチェック
                                      state.settings[key] = loadedValue === true;
                                 } else if (key === 'thinkingBudget') {
@@ -3517,6 +3538,7 @@
                 elements.modelNameSelect.value = state.settings.modelName || DEFAULT_MODEL;
                 elements.streamingOutputCheckbox.checked = state.settings.streamingOutput;
                 elements.streamingSpeedInput.value = state.settings.streamingSpeed ?? DEFAULT_STREAMING_SPEED;
+                elements.enableSystemPromptCheckbox.checked = state.settings.enableSystemPrompt; // 【追加】
                 elements.systemPromptDefaultTextarea.value = state.settings.systemPrompt || ''; // デフォルト用
                 elements.temperatureInput.value = state.settings.temperature === null ? '' : state.settings.temperature;
                 elements.maxTokensInput.value = state.settings.maxTokens === null ? '' : state.settings.maxTokens;
@@ -3526,7 +3548,9 @@
                 elements.frequencyPenaltyInput.value = state.settings.frequencyPenalty === null ? '' : state.settings.frequencyPenalty;
                 elements.thinkingBudgetInput.value = state.settings.thinkingBudget === null ? '' : state.settings.thinkingBudget;
                 elements.includeThoughtsToggle.checked = state.settings.includeThoughts; // Include Thoughts 設定を適用
+                elements.enableDummyUserCheckbox.checked = state.settings.enableDummyUser; // 【追加】
                 elements.dummyUserInput.value = state.settings.dummyUser || '';
+                elements.enableDummyModelCheckbox.checked = state.settings.enableDummyModel; // 【追加】
                 elements.dummyModelInput.value = state.settings.dummyModel || '';
                 elements.concatDummyModelCheckbox.checked = state.settings.concatDummyModel;
                 elements.additionalModelsTextarea.value = state.settings.additionalModels || '';
@@ -5098,8 +5122,9 @@
 
                 const dummyUserText = state.settings.dummyUser?.trim();
                 const dummyModelText = state.settings.dummyModel?.trim();
-                if (dummyUserText) apiMessages.push({ role: 'user', parts: [{ text: dummyUserText }] });
-                if (dummyModelText) apiMessages.push({ role: 'model', parts: [{ text: dummyModelText }] });
+                // 【変更】有効化チェックボックスがONの場合のみ追加するように条件を追加
+                if (state.settings.enableDummyUser && dummyUserText) apiMessages.push({ role: 'user', parts: [{ text: dummyUserText }] });
+                if (state.settings.enableDummyModel && dummyModelText) apiMessages.push({ role: 'model', parts: [{ text: dummyModelText }] });
 
                 const generationConfig = {};
                 if (state.settings.temperature !== null) generationConfig.temperature = state.settings.temperature;
@@ -5107,7 +5132,8 @@
                 if (state.settings.topK !== null) generationConfig.topK = state.settings.topK;
                 if (state.settings.topP !== null) generationConfig.topP = state.settings.topP;
 
-                const systemInstruction = state.currentSystemPrompt?.trim()
+                // 【変更】有効化チェックボックスがONの場合のみシステムプロンプトを設定するように条件を追加
+                const systemInstruction = (state.settings.enableSystemPrompt && state.currentSystemPrompt?.trim())
                     ? { role: "system", parts: [{ text: state.currentSystemPrompt.trim() }] }
                     : null;
 
@@ -5120,7 +5146,8 @@
 
                 try {
                     const response = await apiUtils.callGeminiApi(apiMessages, generationConfig, systemInstruction);
-                    const dummyModelPrefix = (state.settings.concatDummyModel && state.settings.dummyModel) ? state.settings.dummyModel : '';
+                    // 【変更】ダミーモデル連結機能も、ダミーモデル自体が有効な場合のみ機能するように変更
+                    const dummyModelPrefix = (state.settings.enableDummyModel && state.settings.concatDummyModel && state.settings.dummyModel) ? state.settings.dummyModel : '';
                     state.partialStreamContent = dummyModelPrefix; // プレフィックスを初期値に設定
                     state.partialThoughtStreamContent = '';
 
@@ -5537,6 +5564,7 @@
                      modelName: elements.modelNameSelect.value,
                      streamingOutput: elements.streamingOutputCheckbox.checked,
                      streamingSpeed: elements.streamingSpeedInput.value === '' ? DEFAULT_STREAMING_SPEED : parseInt(elements.streamingSpeedInput.value),
+                     enableSystemPrompt: elements.enableSystemPromptCheckbox.checked, // 【追加】
                      systemPrompt: elements.systemPromptDefaultTextarea.value.trim(), // デフォルト用
                      temperature: elements.temperatureInput.value === '' ? null : parseFloat(elements.temperatureInput.value),
                      maxTokens: elements.maxTokensInput.value === '' ? null : parseInt(elements.maxTokensInput.value),
@@ -5546,7 +5574,9 @@
                      frequencyPenalty: elements.frequencyPenaltyInput.value === '' ? null : parseFloat(elements.frequencyPenaltyInput.value),
                      thinkingBudget: elements.thinkingBudgetInput.value === '' ? null : parseInt(elements.thinkingBudgetInput.value, 10),
                      includeThoughts: elements.includeThoughtsToggle.checked, // Include Thoughts 設定を取得
+                     enableDummyUser: elements.enableDummyUserCheckbox.checked, // 【追加】
                      dummyUser: elements.dummyUserInput.value.trim(),
+                     enableDummyModel: elements.enableDummyModelCheckbox.checked, // 【追加】
                      dummyModel: elements.dummyModelInput.value.trim(),
                      concatDummyModel: elements.concatDummyModelCheckbox.checked,
                      additionalModels: elements.additionalModelsTextarea.value.trim(),
