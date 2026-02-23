@@ -1693,7 +1693,7 @@
 <body>
     <div class="app-container">
 
-        <!-- チャット画面 -->
+         <!-- チャット画面 -->
         <div id="chat-screen" class="screen active">
             <header class="app-header">
                 <button id="goto-history-btn" class="header-button" aria-label="履歴一覧へ">☰</button>
@@ -1702,17 +1702,7 @@
                 <button id="goto-settings-btn" class="header-button" aria-label="設定へ">⚙</button>
             </header>
            <main class="main-content">
-                <!-- 【追加】チャット画面用キャッシュステータスバナー -->
-                <div id="chat-cache-banner" class="hidden" style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; margin-bottom: 15px; border-radius: 8px; background-color: var(--bg-tertiary); border: 1px solid var(--border-secondary); font-size: 12px;">
-                    <div style="flex-grow: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 10px;">
-                        <span style="font-weight: bold; color: var(--text-link);">🗂️ Cache: </span>
-                        <span id="chat-cache-info"></span>
-                    </div>
-                    <div style="flex-shrink: 0; display: flex; gap: 5px;">
-                        <button id="chat-cache-update-btn" style="padding: 4px 8px; font-size: 11px; background-color: var(--bg-button-edit);">延長</button>
-                        <button id="chat-cache-delete-btn" style="padding: 4px 8px; font-size: 11px; background-color: var(--bg-button-delete);">削除</button>
-                    </div>
-                </div>
+                <!-- 【削除】ここにあった chat-cache-banner を下部に移動 -->
 
                 <!-- システムプロンプト表示/編集エリア -->
                 <div id="system-prompt-area" class="system-prompt-area">
@@ -1733,6 +1723,19 @@
                 </div>
                 <div id="loading-indicator" class="loading-indicator hidden" aria-live="polite">応答中</div>
             </main>
+
+            <!-- 【移動・修正】キャッシュバナーを入力エリアの直上に固定配置 -->
+            <div id="chat-cache-banner" class="chat-cache-banner hidden">
+                <div style="flex-grow: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 10px;">
+                    <span style="font-weight: bold; color: var(--text-link);">🗂️ Cache: </span>
+                    <span id="chat-cache-info"></span>
+                </div>
+                <div style="flex-shrink: 0; display: flex; gap: 5px;">
+                    <button id="chat-cache-update-btn" style="padding: 4px 8px; font-size: 11px; background-color: var(--bg-button-edit);">延長</button>
+                    <button id="chat-cache-delete-btn" style="padding: 4px 8px; font-size: 11px; background-color: var(--bg-button-delete);">削除</button>
+                </div>
+            </div>
+
             <footer class="chat-input-area">
                 <textarea id="user-input" placeholder="メッセージを入力..." rows="1" aria-label="メッセージ入力"></textarea>
                 <!-- 添付ファイルボタンを追加 -->
