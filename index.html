@@ -1229,6 +1229,38 @@
             margin: 1.5em 0;
         }
 
+        /* 【追加】コードブロックコピーボタン関連のスタイル */
+        .code-wrapper {
+            position: relative;
+            margin: 1em 0; /* 既存の pre のマージンに合わせる */
+        }
+        .message-content .code-wrapper pre,
+        .thought-summary-content .code-wrapper pre {
+            margin: 0; /* ラッパー内の pre のマージンを打ち消す */
+        }
+        .code-copy-btn {
+            position: absolute;
+            bottom: 8px; /* 横スクロールバーに被らないよう少し浮かせる */
+            right: 8px;
+            background-color: var(--bg-button-action);
+            color: var(--text-light);
+            border: none;
+            border-radius: 4px;
+            padding: 4px 10px;
+            font-size: 11px;
+            cursor: pointer;
+            opacity: 0.7; /* デフォルトで少し透過して控えめに表示 */
+            transition: opacity 0.2s ease, background-color 0.2s ease;
+            z-index: 10;
+        }
+        .code-copy-btn:hover {
+            opacity: 1;
+            background-color: var(--bg-button-action-hover);
+        }
+        .code-copy-btn.copied {
+            background-color: var(--bg-button-save) !important;
+            opacity: 1;
+        }
         /* :hover または .show-actions クラスで操作ボックスを表示 */
         .message:hover .message-actions,
         .message.show-actions .message-actions,
@@ -4385,6 +4417,21 @@
                         // sanitize: true, <- ★削除（XSS対策はDOMPurify等の別ライブラリが必須。個人利用なら不要のため削除）
                         smartypants: false // スマートクォートなどを無効化
                     });
+
+                    // 【追加】コードブロックにコピーボタンを追加するためのレンダラー拡張
+                    const renderer = new marked.Renderer();
+                    const originalCodeRenderer = renderer.code.bind(renderer);
+                    marked.use({
+                        renderer: {
+                            code(token) {
+                                // 元のレンダリング結果（<pre><code...>...</code></pre>）を取得
+                                const html = originalCodeRenderer(token);
+                                // ラッパーdivとコピーボタンを付与して返す
+                                return `<div class="code-wrapper">\n${html}<button class="code-copy-btn" title="コードをコピー">コピー</button>\n</div>`;
+                            }
+                        }
+                    });
+
                     console.log("Marked.js設定完了");
                 } else {
                     console.error("Marked.jsライブラリが読み込まれていません！");
@@ -4530,11 +4577,37 @@
                 });
                 
                 // --- メッセージクリックで操作ボックス表示/非表示 ---
-                elements.messageContainer.addEventListener('click', (event) => {
-                    const clickedMessage = event.target.closest('.message');
+                // 【変更】コールバック関数に async を追加
+                elements.messageContainer.addEventListener('click', async (event) => {
+                    const target = event.target; // event.target を変数に格納
+
+                    // 【追加】コードコピーボタンがクリックされた場合の処理
+                    if (target.classList.contains('code-copy-btn')) {
+                        const wrapper = target.closest('.code-wrapper');
+                        const code = wrapper.querySelector('code');
+                        if (code) {
+                            try {
+                                await navigator.clipboard.writeText(code.innerText); // クリップボードにコピー
+                                const originalText = target.textContent;
+                                target.textContent = 'コピー完了';
+                                target.classList.add('copied');
+                                setTimeout(() => {
+                                    target.textContent = originalText;
+                                    target.classList.remove('copied');
+                                }, 2000);
+                            } catch (err) {
+                                console.error('クリップボードへのコピーに失敗しました', err);
+                                target.textContent = '失敗';
+                                setTimeout(() => { target.textContent = 'コピー'; }, 2000);
+                            }
+                        }
+                        return; // ここで処理終了
+                    }
+
+                    const clickedMessage = target.closest('.message'); // 【変更】targetを利用
 
                     // 操作ボックス内のボタンがクリックされた場合は何もしない
-                    if (event.target.closest('.message-actions button, .message-cascade-controls button')) {
+                    if (target.closest('.message-actions button, .message-cascade-controls button')) { // 【変更】targetを利用
                         return;
                     }
 
