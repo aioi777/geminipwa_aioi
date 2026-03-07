@@ -1713,6 +1713,19 @@
             border-top-color: var(--border-primary);
         }
 
+        .hljs-comment {
+            color: #6a9955 !important; 
+            font-style: italic;
+        }
+        /* コードブロックの背景調整 */
+        .message-content pre code {
+            display: block;
+            background: transparent;
+            padding: 0;
+            font-family: Consolas, Monaco, monospace;
+        }
+
+
         /* メッセージアクション領域のトークン数表示 */
         .message-actions .token-count-display {
             font-size: 0.8rem;
@@ -2225,6 +2238,10 @@
             background-color: var(--bg-dialog-button-cancel-hover);
         }
     </style>
+    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/dart.min.js"></script>
     <script src="marked.js"></script>
 </head>
 
@@ -5058,12 +5075,15 @@ const endpoint = `https://generativelanguage.googleapis.com/v1beta/${modelPath}:
             async initializeApp() {
                 // marked.jsの設定
                 if (typeof marked !== 'undefined') {
-                    marked.setOptions({
-                        breaks: true, // 改行を<br>に変換
-                        gfm: true, // GitHub Flavored Markdown有効化
-                        // sanitize: true, <- ★削除（XSS対策はDOMPurify等の別ライブラリが必須。個人利用なら不要のため削除）
-                        smartypants: false // スマートクォートなどを無効化
-                    });
+                marked.setOptions({
+                    breaks: true, 
+                    gfm: true,
+                    smartypants: false,
+                    highlight: function(code, lang) {
+                        const language = hljs.getLanguage(lang) ? lang : 'plaintext';
+                        return hljs.highlight(code, { language }).value;
+                    }
+                });
 
                     // 【追加】コードブロックにコピーボタンを追加するためのレンダラー拡張
                     const renderer = new marked.Renderer();
