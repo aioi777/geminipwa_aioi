@@ -2356,9 +2356,12 @@
                         <button id="delete-api-key-btn" class="settings-delete-button" type="button" style="padding: 8px; font-size: 13px; margin-left: 0;">削除</button>
                     </div>
                     <label for="new-api-key-input" style="font-size: 12px; color: var(--text-secondary);">APIキーを新規登録:</label>
-                    <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                        <input type="password" id="new-api-key-input" placeholder="APIキーを入力" style="flex-grow: 1; margin-bottom: 0;">
+                                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px; flex-wrap: wrap;">
+                        <input type="password" id="new-api-key-input" placeholder="APIキーを入力" style="flex-grow: 1; min-width: 200px; margin-bottom: 0;">
                         <input type="text" id="new-api-key-name" placeholder="名前(任意)" style="width: 100px; margin-bottom: 0;">
+                        <label class="checkbox-label" style="margin-bottom: 0; font-size: 12px; white-space: nowrap;">
+                            <input type="checkbox" id="new-api-key-is-paid"> 有料枠
+                        </label>
                         <button id="add-api-key-btn" class="settings-action-button" type="button" style="padding: 8px 12px; font-size: 13px;">追加</button>
                     </div>
                     <!-- ボタンを追加し、右寄せ配置 -->
@@ -2859,6 +2862,7 @@
             apiKeySelect: document.getElementById('api-key-select'),
             newApiKeyInput: document.getElementById('new-api-key-input'),
             newApiKeyName: document.getElementById('new-api-key-name'),
+            newApiKeyIsPaid: document.getElementById('new-api-key-is-paid'),
             addApiKeyBtn: document.getElementById('add-api-key-btn'),
             deleteApiKeyBtn: document.getElementById('delete-api-key-btn'),
             fetchModelsBtn: document.getElementById('fetch-models-btn'),
@@ -4604,7 +4608,8 @@
                         option.value = k.key;
                         // セキュリティのためキーの一部を伏せ字表示
                         const maskedKey = k.key.length > 10 ? k.key.substring(0, 6) + '...' + k.key.substring(k.key.length - 4) : '***';
-                        option.textContent = `${k.name || 'Key ' + (index + 1)} (${maskedKey})`;
+                        const tierLabel = k.isPaid ? '💲有料' : '🆓無料';
+                        option.textContent = `[${tierLabel}] ${k.name || 'Key ' + (index + 1)} (${maskedKey})`;
                         select.appendChild(option);
                     });
                     // 保存されているキーを選択状態にする
@@ -6371,12 +6376,14 @@ const endpoint = `https://generativelanguage.googleapis.com/v1beta/${modelPath}:
             addApiKey() {
                 const key = elements.newApiKeyInput.value.trim();
                 const name = elements.newApiKeyName.value.trim() || `Key ${state.settings.apiKeys.length + 1}`;
+                const isPaid = elements.newApiKeyIsPaid.checked; 
                 if (!key) return uiUtils.showCustomAlert("APIキーを入力してください。");
                 if (state.settings.apiKeys.some(k => k.key === key)) return uiUtils.showCustomAlert("このAPIキーは既に登録されています。");
                 
-                state.settings.apiKeys.push({ name, key });
+                state.settings.apiKeys.push({ name, key, isPaid }); 
                 elements.newApiKeyInput.value = '';
                 elements.newApiKeyName.value = '';
+                elements.newApiKeyIsPaid.checked = false; 
                 uiUtils.updateApiKeyUI();
                 elements.apiKeySelect.value = key; // 追加したものを選択状態に
             },
