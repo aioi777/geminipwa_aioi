@@ -5078,24 +5078,34 @@ const endpoint = `https://generativelanguage.googleapis.com/v1beta/${modelPath}:
             async initializeApp() {
                 // marked.jsの設定
                 if (typeof marked !== 'undefined') {
-                marked.setOptions({
-                    breaks: true, 
-                    gfm: true,
-                    smartypants: false,
-                    highlight: function(code, lang) {
-                        const language = hljs.getLanguage(lang) ? lang : 'plaintext';
-                        return hljs.highlight(code, { language }).value;
-                    }
-                });
+                    marked.setOptions({
+                        breaks: true, 
+                        gfm: true,
+                        smartypants: false
+                    });
 
-                    // 【追加】コードブロックにコピーボタンを追加するためのレンダラー拡張
-                    const renderer = new marked.Renderer();
-                    const originalCodeRenderer = renderer.code.bind(renderer);
                     marked.use({
                         renderer: {
                             code(token) {
-                                // 元のレンダリング結果（<pre><code...>...</code></pre>）を取得
-                                const html = originalCodeRenderer(token);
+                                const lang = (token.lang || '').match(/^\S*/)?.[0];
+                                let codeHtml = '';
+
+                                // Highlight.js でハイライト処理
+                                if (lang && hljs.getLanguage(lang)) {
+                                    try {
+                                        codeHtml = hljs.highlight(token.text, { language: lang }).value;
+                                    } catch (e) {
+                                        codeHtml = token.text.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+                                    }
+                                } else {
+                                    // 言語指定がない場合は単純にエスケープ
+                                    codeHtml = token.text.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+                                }
+
+                                // HLJSのクラス名を付与して<pre><code>を生成
+                                const classAttr = lang ? ` class="hljs language-${lang}"` : ' class="hljs"';
+                                const html = `<pre><code${classAttr}>${codeHtml}</code></pre>\n`;
+
                                 // ラッパーdivとコピーボタンを付与して返す
                                 return `<div class="code-wrapper">\n${html}<button class="code-copy-btn" title="コードをコピー">コピー</button>\n</div>`;
                             }
