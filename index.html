@@ -2240,9 +2240,12 @@
     </style>
     </style>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/dart.min.js"></script>
-    <script src="marked.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/dart.min.js"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.9/purify.min.js"></script>
+
+<script src="marked.js"></script>
 </head>
 
 <body>
@@ -3553,7 +3556,7 @@
                         thoughtContentDiv.innerHTML = ''; // 初期は空
                     } else {
                         try {
-                            thoughtContentDiv.innerHTML = marked.parse(messageData.thoughtSummary || '');
+                            thoughtContentDiv.innerHTML = DOMPurify.sanitize(marked.parse(messageData.thoughtSummary || ''));
                         } catch (e) {
                             console.error("Thought Summary Markdownパースエラー:", e);
                             thoughtContentDiv.textContent = messageData.thoughtSummary || '';
@@ -3598,7 +3601,7 @@
                     // 通常のコンテンツ処理 (既存ロジック)
                     try {
                         if (role === 'model' && !isStreamingPlaceholder && typeof marked !== 'undefined') {
-                            contentDiv.innerHTML = marked.parse(content || '');
+                            contentDiv.innerHTML = DOMPurify.sanitize(marked.parse(content || ''));
                         } else if (role === 'user') { // 添付ファイルがないユーザーメッセージ
                             const pre = document.createElement('pre'); pre.textContent = content; contentDiv.appendChild(pre);
                         } else if (role === 'error') {
@@ -3863,7 +3866,7 @@
 
                     if (targetContentDiv) {
                         try {
-                            targetContentDiv.innerHTML = marked.parse(streamContent || '');
+                            targetContentDiv.innerHTML = DOMPurify.sanitize(marked.parse(streamContent || ''));
                         } catch (e) {
                             console.error(`ストリーミング更新中のMarkdownパースエラー (${isThoughtSummary ? 'Thought' : 'Content'}):`, e);
                             targetContentDiv.textContent = streamContent;
@@ -3887,7 +3890,7 @@
                         const thoughtContentDiv = messageDiv.querySelector(`#streaming-thought-summary-${index}`);
                         if (thoughtContentDiv && typeof marked !== 'undefined') {
                             try {
-                                thoughtContentDiv.innerHTML = marked.parse(finalMessageData.thoughtSummary || '');
+                                thoughtContentDiv.innerHTML = DOMPurify.sanitize(marked.parse(finalMessageData.thoughtSummary || ''));
                             } catch (e) {
                                 console.error("Thought Summary ストリーミング完了時のMarkdownパースエラー:", e);
                                 thoughtContentDiv.textContent = finalMessageData.thoughtSummary || '';
@@ -3906,7 +3909,7 @@
                     if (contentDiv && typeof marked !== 'undefined') {
                         try {
                             // 最終コンテンツをMarkdownとしてパース
-                            contentDiv.innerHTML = marked.parse(finalRawContent);
+                            contentDiv.innerHTML = DOMPurify.sanitize(marked.parse(finalRawContent));
                         } catch (e) {
                             console.error("ストリーミング完了時のMarkdownパースエラー:", e);
                             contentDiv.textContent = finalRawContent; // エラー時はテキスト表示
@@ -6611,7 +6614,7 @@ const endpoint = `https://generativelanguage.googleapis.com/v1beta/${modelPath}:
                 const contentDiv = messageElement.querySelector('.message-content');
                 if (contentDiv && typeof marked !== 'undefined' && originalMessage.role === 'model') { // モデルメッセージのみMarkdown
                     try {
-                        contentDiv.innerHTML = marked.parse(newRawContent || ''); // Markdownパース
+                        contentDiv.innerHTML = DOMPurify.sanitize(marked.parse(newRawContent || '')); // Markdownパース
                     } catch (e) {
                         console.error("編集保存時のMarkdownパースエラー:", e);
                         contentDiv.textContent = newRawContent; // エラー時はテキスト表示
