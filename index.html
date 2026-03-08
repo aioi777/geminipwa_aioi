@@ -2350,9 +2350,17 @@
             <main class="main-content">
                 <div class="settings-group">
                     <h3>基本設定</h3>
-                    <label for="api-key">Gemini APIキー:</label>
-                    <input type="password" id="api-key" placeholder="APIキーを入力" aria-label="Gemini APIキー">
-
+                                        <label for="api-key-select">使用するAPIキー:</label>
+                    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                        <select id="api-key-select" aria-label="使用するAPIキー" style="flex-grow: 1; margin-bottom: 0;"></select>
+                        <button id="delete-api-key-btn" class="settings-delete-button" type="button" style="padding: 8px; font-size: 13px; margin-left: 0;">削除</button>
+                    </div>
+                    <label for="new-api-key-input" style="font-size: 12px; color: var(--text-secondary);">APIキーを新規登録:</label>
+                    <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                        <input type="password" id="new-api-key-input" placeholder="APIキーを入力" style="flex-grow: 1; margin-bottom: 0;">
+                        <input type="text" id="new-api-key-name" placeholder="名前(任意)" style="width: 100px; margin-bottom: 0;">
+                        <button id="add-api-key-btn" class="settings-action-button" type="button" style="padding: 8px 12px; font-size: 13px;">追加</button>
+                    </div>
                     <!-- ボタンを追加し、右寄せ配置 -->
                     <label for="model-name">モデル名: <button id="fetch-models-btn" type="button"
                             style="font-size: 11px; padding: 2px 6px; cursor: pointer; float: right; background-color: var(--bg-button); color: var(--text-light); border: none; border-radius: 3px;">↻
@@ -2848,8 +2856,12 @@
             saveSystemPromptBtn: document.getElementById('save-system-prompt-btn'),
             cancelSystemPromptBtn: document.getElementById('cancel-system-prompt-btn'),
             // 設定要素
-            apiKeyInput: document.getElementById('api-key'),
-            fetchModelsBtn: document.getElementById('fetch-models-btn'), // 追加
+            apiKeySelect: document.getElementById('api-key-select'),
+            newApiKeyInput: document.getElementById('new-api-key-input'),
+            newApiKeyName: document.getElementById('new-api-key-name'),
+            addApiKeyBtn: document.getElementById('add-api-key-btn'),
+            deleteApiKeyBtn: document.getElementById('delete-api-key-btn'),
+            fetchModelsBtn: document.getElementById('fetch-models-btn'),
             modelNameSelect: document.getElementById('model-name'),
             userDefinedModelsGroup: document.getElementById('user-defined-models-group'), // ユーザー指定モデルのoptgroup
             streamingOutputCheckbox: document.getElementById('streaming-output'),
@@ -2949,6 +2961,7 @@
             currentSystemPrompt: '', // 現在のチャットのシステムプロンプト
             settings: { // デフォルト値
                 apiKey: '',
+                apiKeys: [], 
                 modelName: DEFAULT_MODEL,
                 streamingOutput: true,
                 streamingSpeed: DEFAULT_STREAMING_SPEED,
@@ -3187,6 +3200,8 @@
                                 if (key === 'contextCaches') {
                                     // contextCachesは配列であることを保証
                                     state.settings[key] = Array.isArray(loadedValue) ? loadedValue : [];
+                                } else if (key === 'apiKeys') {
+                                    state.settings[key] = Array.isArray(loadedValue) ? loadedValue : [];
                                 } else if (key === 'hideSystemPromptInChat') { // SP非表示設定
                                     state.settings[key] = loadedValue === true;
                                 } else if (key === 'enableGrounding') { // ネット検索設定                                    state.settings[key] = loadedValue === true;
@@ -3247,6 +3262,9 @@
                             // 注意: これはDBにはすぐ保存しない。ユーザーが切り替えて保存する必要がある
                         }
 
+                        if (state.settings.apiKeys.length === 0 && state.settings.apiKey) {
+                            state.settings.apiKeys.push({ name: 'Default', key: state.settings.apiKey });
+                        }
 
                         console.log("設定読み込み完了:", { ...state.settings });
                         resolve(state.settings);
@@ -4174,7 +4192,9 @@
                     this.buildModelSelectOptions(state.settings.cachedModelList);
                 }
 
-                elements.apiKeyInput.value = state.settings.apiKey || '';
+                // ▼変更
+                this.updateApiKeyUI();
+                // ▲ここまで
                 elements.modelNameSelect.value = state.settings.modelName || DEFAULT_MODEL;
                 elements.streamingOutputCheckbox.checked = state.settings.streamingOutput;
                 elements.streamingSpeedInput.value = state.settings.streamingSpeed ?? DEFAULT_STREAMING_SPEED;
@@ -4561,6 +4581,38 @@
                     elements.confirmAttachBtn.disabled = true;
                 } else {
                     elements.confirmAttachBtn.disabled = state.selectedFilesForUpload.length === 0;
+                }
+            },
+
+            // ▼追加：APIキーのUI構築
+            updateApiKeyUI() {
+                const select = elements.apiKeySelect;
+                select.innerHTML = '';
+                
+                // ▼自動移行ロジックをここから削除しました
+
+                if (state.settings.apiKeys.length === 0) {
+                    const option = document.createElement('option');
+                    option.value = '';
+                    option.textContent = 'キーが登録されていません';
+                    select.appendChild(option);
+                    select.disabled = true;
+                } else {
+                    select.disabled = false;
+                    state.settings.apiKeys.forEach((k, index) => {
+                        const option = document.createElement('option');
+                        option.value = k.key;
+                        // セキュリティのためキーの一部を伏せ字表示
+                        const maskedKey = k.key.length > 10 ? k.key.substring(0, 6) + '...' + k.key.substring(k.key.length - 4) : '***';
+                        option.textContent = `${k.name || 'Key ' + (index + 1)} (${maskedKey})`;
+                        select.appendChild(option);
+                    });
+                    // 保存されているキーを選択状態にする
+                    if (state.settings.apiKey && state.settings.apiKeys.some(k => k.key === state.settings.apiKey)) {
+                        select.value = state.settings.apiKey;
+                    } else {
+                        select.value = state.settings.apiKeys[0].key;
+                    }
                 }
             },
 
@@ -5235,10 +5287,12 @@ const endpoint = `https://generativelanguage.googleapis.com/v1beta/${modelPath}:
                 });
 
                 // 設定アクション
+                elements.addApiKeyBtn.addEventListener('click', () => this.addApiKey());
+                elements.deleteApiKeyBtn.addEventListener('click', () => this.deleteApiKey());
                 elements.saveSettingsBtns.forEach(button => {
                     button.addEventListener('click', () => this.saveSettings());
                 });
-                elements.fetchModelsBtn.addEventListener('click', () => this.fetchAndUpdateModels()); // 追加
+                elements.fetchModelsBtn.addEventListener('click', () => this.fetchAndUpdateModels());
                 elements.updateAppBtn.addEventListener('click', () => this.updateApp());
                 elements.clearDataBtn.addEventListener('click', () => this.confirmClearAllData());
 
@@ -6314,11 +6368,35 @@ const endpoint = `https://generativelanguage.googleapis.com/v1beta/${modelPath}:
             },
             // -------------------------------
 
+            addApiKey() {
+                const key = elements.newApiKeyInput.value.trim();
+                const name = elements.newApiKeyName.value.trim() || `Key ${state.settings.apiKeys.length + 1}`;
+                if (!key) return uiUtils.showCustomAlert("APIキーを入力してください。");
+                if (state.settings.apiKeys.some(k => k.key === key)) return uiUtils.showCustomAlert("このAPIキーは既に登録されています。");
+                
+                state.settings.apiKeys.push({ name, key });
+                elements.newApiKeyInput.value = '';
+                elements.newApiKeyName.value = '';
+                uiUtils.updateApiKeyUI();
+                elements.apiKeySelect.value = key; // 追加したものを選択状態に
+            },
+            async deleteApiKey() {
+                const keyToDelete = elements.apiKeySelect.value;
+                if (!keyToDelete) return;
+                
+                const confirmed = await uiUtils.showCustomConfirm("選択中のAPIキーをリストから削除しますか？\n※「設定を保存」を押すまでは確定されません");
+                if (confirmed) {
+                    state.settings.apiKeys = state.settings.apiKeys.filter(k => k.key !== keyToDelete);
+                    uiUtils.updateApiKeyUI();
+                }
+            },
+
             // 設定を保存
             async saveSettings() {
                 // UIから値を取得 (背景Blobは別途処理済みなので除く)
                 const newSettings = {
-                    apiKey: elements.apiKeyInput.value.trim(),
+                    apiKey: elements.apiKeySelect.value || '', 
+                    apiKeys: state.settings.apiKeys,
                     modelName: elements.modelNameSelect.value,
                     streamingOutput: elements.streamingOutputCheckbox.checked,
                     streamingSpeed: elements.streamingSpeedInput.value === '' ? DEFAULT_STREAMING_SPEED : parseInt(elements.streamingSpeedInput.value),
