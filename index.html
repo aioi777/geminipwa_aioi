@@ -7403,28 +7403,29 @@ const endpoint = `https://generativelanguage.googleapis.com/v1beta/${modelPath}:
 
                 const confirmed = await uiUtils.showCustomConfirm(`キャッシュ「${cache.displayName}」を削除しますか？\nこの操作は元に戻せません。`);
                 if (confirmed) {
-                    try {
-                        await apiUtils.deleteCache(cache.name);
-
-                        // stateからキャッシュを削除
+                    const removeLocalCache = async () => {
                         state.settings.contextCaches = state.settings.contextCaches.filter(c => c.name !== cache.name);
-
-                        // アクティブキャッシュが削除されたものならリセット
                         if (state.settings.activeCacheName === cache.name) {
                             state.settings.activeCacheName = '';
                         }
-
-                        // DBに保存
                         await dbUtils.saveSetting('contextCaches', state.settings.contextCaches);
                         await dbUtils.saveSetting('activeCacheName', state.settings.activeCacheName);
-
-                        // UIを更新
                         uiUtils.updateCacheUI();
+                        await uiUtils.showCustomAlert("キャッシュをリストから削除しました。");
+                    };
 
-                        await uiUtils.showCustomAlert("キャッシュを削除しました。");
-
+                    try {
+                        // 1. まずAPI経由で削除を試みる
+                        await apiUtils.deleteCache(cache.name);
+                        // 成功したらローカルからも消す
+                        await removeLocalCache();
                     } catch (error) {
-                        await uiUtils.showCustomAlert(error.message);
+                        // エラーが起きた（既にサーバー側で期限切れで消えている等）場合
+                        console.error("キャッシュ削除エラー:", error);
+                        const forceDelete = await uiUtils.showCustomConfirm(`API側での削除に失敗しました（${error.message}）。\n有効期限切れなどにより、すでにサーバー側で消滅している可能性があります。\nローカルのリストから強制的に削除しますか？`);
+                        if (forceDelete) {
+                            await removeLocalCache(); // 強制削除
+                        }
                     }
                 }
             },
